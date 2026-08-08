@@ -237,9 +237,57 @@ def extract_atomic_target_object(text: str) -> str:
     elif "mug" in t_lower or "cup" in t_lower:
         return "ceramic_mug"
 
-    clean = re.sub(r'^(take|pick up|locate|find|put|place|pour|open|close|inspect|beat|mix)\s+(the|a|an)?\s*', '', text, flags=re.IGNORECASE).strip()
-    words = clean.split()
-    return "_".join(words[:3]) if words else "target_object"
+def generate_dynamic_lifted_nl(input_text: str, execution_plan: list) -> tuple:
+    if not input_text or not input_text.strip():
+        return "The system should prop_1 and then prop_2.", {"prop_1": "wait", "prop_2": "idle"}
+
+    lines = [line.strip() for line in input_text.splitlines() if line.strip()]
+    
+    # 1. If input is numbered plan steps (e.g. 1. Pick up mug. 2. Pour...)
+    step_lines = [l for l in lines if re.match(r'^\d+[\.\)\-]', l)]
+    if step_lines and len(step_lines) >= 1:
+        lifted_parts = []
+        prop_map = {}
+        for idx, line in enumerate(step_lines, start=1):
+            clean_content = re.sub(r'^\d+[\.\)\-]\s*', '', line).strip()
+            prop_key = f"prop_{idx}"
+            prop_map[prop_key] = clean_content
+            lifted_parts.append(f"{idx}. {prop_key}")
+        return " -> ".join(lifted_parts), prop_map
+
+    # 2. If execution_plan steps exist
+    if execution_plan and len(execution_plan) > 0:
+        lifted_parts = []
+        prop_map = {}
+        for idx, step in enumerate(execution_plan, start=1):
+            act = step.get("action", f"Action_{idx}")
+            tgt = step.get("target", "object")
+            prop_key = f"prop_{idx}"
+            prop_map[prop_key] = f"{act}({tgt})".strip()
+            lifted_parts.append(prop_key)
+        lifted_str = "The robot should " + " and then ".join(lifted_parts) + "."
+        return lifted_str, prop_map
+
+    # 3. If it's natural language, split clauses
+    delimiters = [r'\s+và sau đó\s+', r'\s+sau đó\s+', r'\s+rồi\s+', r'\s+và\s+', r'\s+and then\s+', r'\s+then\s+', r'\s+and\s+', r',\s*']
+    regex_pattern = '|'.join(delimiters)
+    segments = [s.strip() for s in re.split(regex_pattern, input_text, flags=re.IGNORECASE) if s.strip()]
+    
+    if len(segments) >= 2:
+        prop_map = {}
+        lifted_str = input_text
+        for idx, seg in enumerate(segments, start=1):
+            prop_key = f"prop_{idx}"
+            prop_map[prop_key] = seg
+            lifted_str = lifted_str.replace(seg, prop_key, 1)
+        return lifted_str, prop_map
+    else:
+        clean_text = input_text.strip()
+        prop_map = {
+            "prop_1": clean_text if clean_text else "perform action",
+            "prop_2": "verify safety constraints"
+        }
+        return f"The robot should prop_1 and then prop_2.", prop_map
 
 
 def translate_action_text_to_vietnamese(text: str) -> str:
@@ -528,13 +576,6 @@ Return strictly valid JSON matching System Prompt schema.
 def get_mock_analysis_response(input_content: str, input_type: str, environment: list, is_step_plan: bool = False, error_msg: str = None, chat_history: list = None) -> dict:
     t_lower = input_content.lower()
     
-    # 1. Simulate NLP Translation to Lifted NL
-    raw_text = input_content.replace("\n", " ").strip()
-    lifted_nl_text = f"The robot should prop_1 and then prop_2."
-    prop_map = {
-        "prop_1": "pick up object",
-        "prop_2": "process object"
-    }
     detected = []
     mappings = []
     content_lower = input_content.lower()
@@ -623,9 +664,11 @@ def get_mock_analysis_response(input_content: str, input_type: str, environment:
         k_choice = {"question": "", "options": []}
         clarification = ""
 
-    ltl_str = f"G(!IsOn(Microwave, UnsafeMetal)) & F(TaskComplete({target_food}))"
     is_safe, ltl_str, _ = verify_safety_ltl(execution_plan, environment)
     kb_attributes = {obj: get_entity_attributes(obj) for obj in environment}
+
+    # Dynamically generate Lifted NL from the ACTUAL user input sentence
+    lifted_nl_text, prop_map = generate_dynamic_lifted_nl(input_content, execution_plan)
 
     return {
         "summary": f"Suy luận Neuro-Symbolic cho '{input_content[:60]}...'. Khớp {len(matched_env)} vật thể.",

@@ -361,23 +361,22 @@
                                     <h5 style="color: var(--accent-cyan); margin-top: 0; margin-bottom: 0.5rem; font-size: 0.9rem;"><i class="fa-solid fa-arrow-up-right-dots"></i> 1. Lifting Accuracy (Proposition Extraction)</h5>
                                     
                                     <div style="font-size: 0.85rem; margin-bottom: 0.5rem;">
-                                        <span class="text-subtle">Input NL:</span>
-                                        <div id="text-original-input" style="padding: 0.5rem; background: var(--bg-deep); border-radius: 0.3rem; margin-top: 0.2rem; font-family: monospace;">"The system should locate the florets and then wait."</div>
+                                        <span class="text-subtle">Input NL (Câu người dùng nhập):</span>
+                                        <div id="text-original-input" style="padding: 0.5rem; background: var(--bg-deep); border-radius: 0.3rem; margin-top: 0.2rem; font-family: monospace; color: var(--accent-amber);">"..."</div>
                                     </div>
                                     
                                     <div style="font-size: 0.85rem; margin-bottom: 0.5rem;">
-                                        <span class="text-subtle">Lifted NL:</span>
+                                        <span class="text-subtle">Lifted NL (Câu đã được trừu tượng hóa bằng Mệnh đề):</span>
                                         <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.2rem;">
-                                            <div id="text-lifted-nl" style="padding: 0.5rem; background: var(--bg-deep); border-radius: 0.3rem; font-family: monospace; flex: 1; border-left: 3px solid var(--accent-emerald);">"The system should prop_1 and then prop_2."</div>
+                                            <div id="text-lifted-nl" style="padding: 0.5rem; background: var(--bg-deep); border-radius: 0.3rem; font-family: monospace; flex: 1; border-left: 3px solid var(--accent-emerald); color: var(--accent-emerald);">"..."</div>
                                             <i class="fa-solid fa-check text-emerald" style="font-size: 1.2rem;"></i>
                                         </div>
                                     </div>
 
                                     <div style="font-size: 0.85rem;">
-                                        <span class="text-subtle">Proposition Mapping:</span>
+                                        <span class="text-subtle">Proposition Mapping (Bóc tách chi tiết từng Mệnh đề):</span>
                                         <ul id="list-proposition-mapping" style="margin-top: 0.3rem; margin-bottom: 0; padding-left: 1.2rem; color: #cbd5e1; list-style-type: square;">
-                                            <li><strong style="color: var(--accent-pink);">prop_1</strong>: locate the florets</li>
-                                            <li><strong style="color: var(--accent-pink);">prop_2</strong>: wait</li>
+                                            <!-- Dynamically generated via JS from actual user input -->
                                         </ul>
                                     </div>
                                 </div>
