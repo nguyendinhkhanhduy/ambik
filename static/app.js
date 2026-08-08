@@ -703,6 +703,31 @@ function renderStage4(analysis) {
     pendingBanner.classList.add('hidden');
     executionContent.classList.remove('hidden');
 
+    // 1. Lifted NL & Proposition Mapping Section
+    let originalText = "";
+    if (state.inputType === 'chat') {
+        const lastUserMsg = state.chatHistory.filter(m => m.role === 'user').pop();
+        originalText = lastUserMsg ? lastUserMsg.content : "N/A";
+    } else {
+        originalText = document.getElementById('input-content').value || "N/A";
+    }
+    
+    document.getElementById('text-original-input').textContent = `"${originalText}"`;
+    document.getElementById('text-lifted-nl').textContent = `"${analysis.lifted_nl || 'The system should prop_1 and then prop_2.'}"`;
+    
+    const propMapContainer = document.getElementById('list-proposition-mapping');
+    propMapContainer.innerHTML = '';
+    const props = analysis.proposition_mapping || {};
+    if (Object.keys(props).length === 0) {
+        propMapContainer.innerHTML = '<li><span class="text-subtle">No propositions extracted.</span></li>';
+    } else {
+        for (const [key, val] of Object.entries(props)) {
+            const li = document.createElement('li');
+            li.innerHTML = `<strong style="color: var(--accent-pink);">${key}</strong>: ${val}`;
+            propMapContainer.appendChild(li);
+        }
+    }
+
     const ltlPre = document.getElementById('ltl-formula-text');
     const verifiedBadge = document.getElementById('verified-safe-badge');
 

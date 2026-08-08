@@ -90,7 +90,12 @@ OUTPUT SCHEMA (Strict JSON):
     "options": []
   },
   "clarifying_question_for_user": "",
-  "ltl_plan": "G(!IsOn(Microwave, UnsafeMetal)) & F(TaskComplete)",
+  "lifted_nl": "The system should prop_1 and then prop_2.",
+  "proposition_mapping": {
+    "prop_1": "action on object 1",
+    "prop_2": "action on object 2"
+  },
+  "ltl_plan": "A(G(Not unsafe_microwave)) & A(G(Not dirty_sponge_on_clean_dish))",
   "verified_safe": true,
   "safe_execution_plan": []
 }
@@ -521,6 +526,15 @@ Return strictly valid JSON matching System Prompt schema.
 
 
 def get_mock_analysis_response(input_content: str, input_type: str, environment: list, is_step_plan: bool = False, error_msg: str = None, chat_history: list = None) -> dict:
+    t_lower = input_content.lower()
+    
+    # 1. Simulate NLP Translation to Lifted NL
+    raw_text = input_content.replace("\n", " ").strip()
+    lifted_nl_text = f"The robot should prop_1 and then prop_2."
+    prop_map = {
+        "prop_1": "pick up object",
+        "prop_2": "process object"
+    }
     detected = []
     mappings = []
     content_lower = input_content.lower()
@@ -585,12 +599,14 @@ def get_mock_analysis_response(input_content: str, input_type: str, environment:
 
         k_choice = { "question": question_text, "options": k_options }
         execution_plan = []
+        clarification = question_text
 
     elif is_step_plan or input_type == "plan_amb_task":
         overall_cat = "Unambiguous"
         entropy_score = 0.00
         execution_plan = parse_clean_atomic_steps(input_content, environment)
         k_choice = {"question": "", "options": []}
+        clarification = ""
 
     else:
         overall_cat = "Common Sense"
@@ -605,9 +621,10 @@ def get_mock_analysis_response(input_content: str, input_type: str, environment:
             {"step": 4, "action": "PutObject", "target": "kitchen_table", "note": f"Bước 4: Đặt {target_food} hoàn chỉnh lên bàn ăn"}
         ]
         k_choice = {"question": "", "options": []}
+        clarification = ""
 
-    ltl_formula = f"G(!IsOn(Microwave, UnsafeMetal)) & F(TaskComplete({target_food}))"
-    is_safe, ltl_formula, _ = verify_safety_ltl(execution_plan, environment)
+    ltl_str = f"G(!IsOn(Microwave, UnsafeMetal)) & F(TaskComplete({target_food}))"
+    is_safe, ltl_str, _ = verify_safety_ltl(execution_plan, environment)
     kb_attributes = {obj: get_entity_attributes(obj) for obj in environment}
 
     return {
@@ -625,8 +642,10 @@ def get_mock_analysis_response(input_content: str, input_type: str, environment:
         "disambiguated_mappings": mappings,
         "detected_ambiguities": detected,
         "k_choice_question": k_choice,
-        "clarifying_question_for_user": k_choice.get("question", ""),
-        "ltl_plan": ltl_formula,
+        "clarifying_question_for_user": clarification,
+        "lifted_nl": lifted_nl_text,
+        "proposition_mapping": prop_map,
+        "ltl_plan": ltl_str,
         "verified_safe": is_safe,
         "safe_execution_plan": execution_plan
     }
