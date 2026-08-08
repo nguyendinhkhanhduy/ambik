@@ -5,6 +5,8 @@ import re
 from google import genai
 from google.genai import types
 from data_loader import get_entity_attributes
+from pyModelChecking import Kripke
+from pyModelChecking.CTL import modelcheck, A, G, Not, AtomicProposition, F
 
 DEFAULT_MODEL = "gemini-2.5-flash"
 ENTROPY_THRESHOLD = 0.5
@@ -366,18 +368,63 @@ def calculate_semantic_entropy(client: genai.Client, input_content: str, environ
 
 
 def verify_safety_ltl(execution_plan: list, environment: list) -> tuple:
+    if not execution_plan:
+        return True, "No plan to check", ""
+        
     violations = []
-    plan_str = json.dumps(execution_plan).lower()
+    
+    # 1. Build Kripke states and transitions
+    num_states = len(execution_plan)
+    S = list(range(num_states))
+    S0 = [0]
+    R = [(i, i + 1) for i in range(num_states - 1)] + [(num_states - 1, num_states - 1)]
+    
+    # 2. Extract properties (Labelling)
+    L = {}
     env_str = json.dumps(environment).lower()
+    has_unsafe_metal = "metal" in env_str
+    has_unsafe_plastic = "plastic" in env_str
+    
+    for i, step in enumerate(execution_plan):
+        labels = set()
+        step_target = str(step.get("target", "")).lower()
+        step_action = str(step.get("action", "")).lower()
+        
+        if "microwave" in step_target or "microwave" in step_action:
+            if has_unsafe_metal or has_unsafe_plastic:
+                if any(m in step_target for m in ["metal", "plastic"]):
+                    labels.add("unsafe_microwave")
+                    
+        if "sponge" in step_target and "dirty" in step_target:
+            labels.add("dirty_sponge_on_clean_dish")
+            
+        L[i] = labels
 
-    if "microwave" in plan_str:
-        if "metal" in env_str or "plastic" in env_str:
-            for step in execution_plan:
-                if "microwave" in str(step.get("target", "")).lower() and any(m in str(step.get("target", "")).lower() for m in ["metal", "plastic"]):
-                    violations.append("Metal or non-microwave safe plastic used in microwave!")
-
+    try:
+        K = Kripke(S=S, S0=S0, R=R, L=L)
+    except Exception as e:
+        return False, f"LTL Kripke Error: {e}", "Failed to build Formal Model"
+        
+    # 3. Define Formulas and Model Check
+    # Safety Rule 1: Globally, never use microwave with unsafe metal or plastic
+    f_microwave = A(G(Not(AtomicProposition("unsafe_microwave"))))
+    # Safety Rule 2: Globally, never use a dirty sponge on a clean dish
+    f_sponge = A(G(Not(AtomicProposition("dirty_sponge_on_clean_dish"))))
+    
+    try:
+        res_microwave = modelcheck(K, f_microwave)
+        if 0 not in res_microwave:
+            violations.append("Metal or non-microwave safe plastic used in microwave!")
+            
+        res_sponge = modelcheck(K, f_sponge)
+        if 0 not in res_sponge:
+            violations.append("Dirty sponge used to clean dishes!")
+    except Exception as e:
+        return False, f"Formal Checker Error: {e}", "Verification logic crashed"
+        
     is_safe = len(violations) == 0
-    ltl_str = "G(!IsOn(Microwave, UnsafeMetal)) & F(TaskComplete)"
+    ltl_str = "A(G(Not unsafe_microwave)) & A(G(Not dirty_sponge_on_clean_dish))"
+    
     if not is_safe:
         ltl_str = f"VIOLATION DETECTED: {'; '.join(violations)} -> Enforcement: G(!UnsafeAction)"
 
