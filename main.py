@@ -1,7 +1,7 @@
 import os
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 
@@ -31,12 +31,16 @@ if not os.path.exists(STATIC_DIR):
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 async def read_index():
     index_file = os.path.join(STATIC_DIR, "index.html")
     if os.path.exists(index_file):
-        return FileResponse(index_file)
-    return {"message": "Neuro-Symbolic AmbiK Disambiguation System Backend is Running."}
+        try:
+            with open(index_file, "r", encoding="utf-8") as f:
+                return HTMLResponse(content=f.read())
+        except Exception as e:
+            return HTMLResponse(content=f"<h3>Error loading index.html: {e}</h3>")
+    return HTMLResponse(content="<h1>Neuro-Symbolic AmbiK Disambiguation System Backend is Running.</h1>")
 
 @app.get("/api/samples")
 async def get_samples(limit: int = 30):

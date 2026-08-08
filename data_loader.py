@@ -1,6 +1,6 @@
 import os
 import json
-import pandas as pd
+import csv
 
 AMBIK_CSV_PATH = r"C:\Users\ADMIN\Downloads\LAB\Code\01.08.2026\AmbiK_data.csv"
 KITCHEN_KB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "kitchen_kb.json")
@@ -33,43 +33,42 @@ def get_entity_attributes(entity_name: str) -> dict:
     }
 
 def load_ambik_samples(limit: int = 50):
-    """Load sample records from AmbiK dataset CSV."""
+    """Load sample records from AmbiK dataset CSV without pandas."""
     if not os.path.exists(AMBIK_CSV_PATH):
         return []
     
     try:
-        df = pd.read_csv(AMBIK_CSV_PATH, encoding='utf-8')
-        df = df.fillna('')
-        
         samples = []
-        for idx, row in df.head(limit).iterrows():
-            env_short = [item.strip() for item in str(row.get('environment_short', '')).split(',') if item.strip()]
-            env_full = [item.strip() for item in str(row.get('environment_full', '')).split(',') if item.strip()]
-            
-            env_list = env_full if env_full else env_short
-            if not env_list:
-                env_list = ["a ceramic mug", "a glass mug", "coffee machine", "milk", "kitchen table"]
-            
-            samples.append({
-                "id": str(row.get('id', idx + 1)),
-                "unambiguous_direct": str(row.get('unambiguous_direct', '')),
-                "ambiguity_type": str(row.get('ambiguity_type', 'preferences')).lower(),
-                "amb_shortlist": str(row.get('amb_shortlist', '')),
-                "ambiguous_task": str(row.get('ambiguous_task', '')),
-                "question": str(row.get('question', '')),
-                "answer": str(row.get('answer', '')),
-                "plan_for_amb_task": str(row.get('plan_for_amb_task', '')),
-                "plan_for_clear_task": str(row.get('plan_for_clear_task', '')),
-                "environment": env_list,
-                "user_intent": str(row.get('user_intent', ''))
-            })
+        with open(AMBIK_CSV_PATH, mode='r', encoding='utf-8', errors='ignore') as f:
+            reader = csv.DictReader(f)
+            for idx, row in enumerate(reader):
+                if idx >= limit:
+                    break
+                env_short = [item.strip() for item in str(row.get('environment_short', '')).split(',') if item.strip()]
+                env_full = [item.strip() for item in str(row.get('environment_full', '')).split(',') if item.strip()]
+                
+                env_list = env_full if env_full else env_short
+                if not env_list:
+                    env_list = ["a ceramic mug", "a glass mug", "coffee machine", "milk", "kitchen table"]
+                
+                samples.append({
+                    "id": str(row.get('id', idx + 1)),
+                    "unambiguous_direct": str(row.get('unambiguous_direct', '')),
+                    "ambiguity_type": str(row.get('ambiguity_type', 'preferences')).lower(),
+                    "amb_shortlist": str(row.get('amb_shortlist', '')),
+                    "ambiguous_task": str(row.get('ambiguous_task', '')),
+                    "question": str(row.get('question', '')),
+                    "answer": str(row.get('answer', '')),
+                    "plan_for_amb_task": str(row.get('plan_for_amb_task', '')),
+                    "plan_for_clear_task": str(row.get('plan_for_clear_task', '')),
+                    "environment": env_list,
+                    "user_intent": str(row.get('user_intent', ''))
+                })
         return samples
     except Exception as e:
         print(f"Error loading AmbiK CSV: {e}")
         return []
 
 if __name__ == "__main__":
-    data = load_ambik_samples(5)
-    print(f"Loaded {len(data)} samples successfully.")
     kb = load_kitchen_kb()
     print(f"Loaded {len(kb.get('kitchen_entities', []))} KB entities.")
