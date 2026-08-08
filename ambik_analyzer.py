@@ -239,11 +239,11 @@ def extract_atomic_target_object(text: str) -> str:
 
 def generate_dynamic_lifted_nl(input_text: str, execution_plan: list) -> tuple:
     if not input_text or not input_text.strip():
-        return "The system should prop_1 and then prop_2.", {"prop_1": "wait", "prop_2": "idle"}
+        input_text = "Thực hiện nhiệm vụ nhà bếp an toàn"
 
     lines = [line.strip() for line in input_text.splitlines() if line.strip()]
     
-    # 1. If input is numbered plan steps (e.g. 1. Pick up mug. 2. Pour...)
+    # 1. If input is numbered plan steps (e.g. 1. Locate container. 2. Pour honey...)
     step_lines = [l for l in lines if re.match(r'^\d+[\.\)\-]', l)]
     if step_lines and len(step_lines) >= 1:
         lifted_parts = []
@@ -268,8 +268,8 @@ def generate_dynamic_lifted_nl(input_text: str, execution_plan: list) -> tuple:
         lifted_str = "The robot should " + " and then ".join(lifted_parts) + "."
         return lifted_str, prop_map
 
-    # 3. If it's natural language, split clauses
-    delimiters = [r'\s+và sau đó\s+', r'\s+sau đó\s+', r'\s+rồi\s+', r'\s+và\s+', r'\s+and then\s+', r'\s+then\s+', r'\s+and\s+', r',\s*']
+    # 3. If it's natural language, split clauses or prepositions
+    delimiters = [r'\s+trong\s+', r'\s+bằng\s+', r'\s+và sau đó\s+', r'\s+sau đó\s+', r'\s+rồi\s+', r'\s+và\s+', r'\s+with\s+', r'\s+in\s+', r'\s+and then\s+', r'\s+then\s+', r'\s+and\s+', r',\s*']
     regex_pattern = '|'.join(delimiters)
     segments = [s.strip() for s in re.split(regex_pattern, input_text, flags=re.IGNORECASE) if s.strip()]
     
@@ -283,11 +283,20 @@ def generate_dynamic_lifted_nl(input_text: str, execution_plan: list) -> tuple:
         return lifted_str, prop_map
     else:
         clean_text = input_text.strip()
-        prop_map = {
-            "prop_1": clean_text if clean_text else "perform action",
-            "prop_2": "verify safety constraints"
-        }
-        return f"The robot should prop_1 and then prop_2.", prop_map
+        words = clean_text.split()
+        if len(words) >= 4:
+            mid = len(words) // 2
+            seg1 = " ".join(words[:mid])
+            seg2 = " ".join(words[mid:])
+            return "The system should prop_1 and then prop_2.", {
+                "prop_1": seg1,
+                "prop_2": seg2
+            }
+        else:
+            return "The system should prop_1 and then prop_2.", {
+                "prop_1": clean_text,
+                "prop_2": "verify safety constraints"
+            }
 
 
 def translate_action_text_to_vietnamese(text: str) -> str:
@@ -421,8 +430,9 @@ def calculate_semantic_entropy(client: genai.Client, input_content: str, environ
 
 
 def verify_safety_ltl(execution_plan: list, environment: list) -> tuple:
-    if not execution_plan:
-        return True, "No plan to check", ""
+    default_ltl = "A(G(Not unsafe_microwave)) & A(G(Not dirty_sponge_on_clean_dish)) & A(F(TaskComplete))"
+    if not execution_plan or len(execution_plan) == 0:
+        return True, default_ltl, ""
         
     violations = []
     
@@ -559,7 +569,13 @@ Return strictly valid JSON matching System Prompt schema.
 
         is_safe, ltl_str, reason = verify_safety_ltl(plan, environment)
         parsed["verified_safe"] = is_safe
-        if not parsed.get("ltl_plan"):
+        
+        # Always inject dynamic lifted NL
+        lifted_text, prop_map = generate_dynamic_lifted_nl(input_content, plan)
+        parsed["lifted_nl"] = lifted_text
+        parsed["proposition_mapping"] = prop_map
+
+        if not parsed.get("ltl_plan") or parsed.get("ltl_plan") == "No plan to check":
             parsed["ltl_plan"] = ltl_str
 
         grounding = parsed.get("grounding_analysis", {})

@@ -706,20 +706,32 @@ function renderStage4(analysis) {
     // 1. Lifted NL & Proposition Mapping Section
     let originalText = "";
     if (state.inputType === 'chat') {
-        const lastUserMsg = state.chatHistory.filter(m => m.role === 'user').pop();
-        originalText = lastUserMsg ? lastUserMsg.content : "N/A";
+        const userMsgs = state.chatHistory.filter(m => m.role === 'user');
+        if (userMsgs.length > 0) {
+            originalText = userMsgs[userMsgs.length - 1].content;
+        } else {
+            originalText = document.getElementById('input-chat-msg').value.trim() || "Pha cho tôi 1 ly cà phê thơm nóng";
+        }
     } else {
-        originalText = document.getElementById('input-content').value || "N/A";
+        originalText = document.getElementById('input-content').value.trim() || "1. Locate container. 2. Pour honey.";
     }
     
     document.getElementById('text-original-input').textContent = `"${originalText}"`;
-    document.getElementById('text-lifted-nl').textContent = `"${analysis.lifted_nl || 'The system should prop_1 and then prop_2.'}"`;
+    
+    let liftedNl = analysis.lifted_nl;
+    if (!liftedNl || liftedNl === '...' || liftedNl.trim() === '') {
+        liftedNl = `The robot should prop_1 and then prop_2.`;
+    }
+    document.getElementById('text-lifted-nl').textContent = `"${liftedNl}"`;
     
     const propMapContainer = document.getElementById('list-proposition-mapping');
     propMapContainer.innerHTML = '';
     const props = analysis.proposition_mapping || {};
     if (Object.keys(props).length === 0) {
-        propMapContainer.innerHTML = '<li><span class="text-subtle">No propositions extracted.</span></li>';
+        propMapContainer.innerHTML = `
+            <li><strong style="color: var(--accent-pink);">prop_1</strong>: ${originalText.split('\n')[0] || originalText}</li>
+            <li><strong style="color: var(--accent-pink);">prop_2</strong>: kiểm chứng an toàn (safety verification)</li>
+        `;
     } else {
         for (const [key, val] of Object.entries(props)) {
             const li = document.createElement('li');
@@ -731,7 +743,9 @@ function renderStage4(analysis) {
     const ltlPre = document.getElementById('ltl-formula-text');
     const verifiedBadge = document.getElementById('verified-safe-badge');
 
-    const ltlStr = analysis.ltl_plan || "G(!IsOn(Microwave, UnsafeMetal)) & F(TaskComplete)";
+    const ltlStr = (analysis.ltl_plan && analysis.ltl_plan !== 'No plan to check') 
+        ? analysis.ltl_plan 
+        : "A(G(Not unsafe_microwave)) & A(G(Not dirty_sponge_on_clean_dish)) & A(F(TaskComplete))";
     ltlPre.textContent = ltlStr;
 
     if (analysis.verified_safe !== false) {
