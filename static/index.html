@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neuro-Symbolic Embodied AI Disambiguation System - Gemini 2.5 Flash</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="dark-theme">
+    <div class="app-container">
+        <!-- Top Navigation / Header -->
+        <header class="app-header">
+            <div class="header-brand">
+                <div class="brand-logo">
+                    <i class="fa-solid fa-atom pulse-icon"></i>
+                </div>
+                <div class="brand-text">
+                    <h1>Neuro-Symbolic <span>Disambiguation Framework</span></h1>
+                    <p>Khung giải nghĩa mơ hồ Lai biểu tượng - nơ ron cho Lập kế hoạch Robot bằng <strong>Gemini 2.5 Flash API</strong> & <strong>LTL Logic</strong></p>
+                </div>
+            </div>
+
+            <div class="header-actions">
+                <div class="model-badge">
+                    <span class="badge-dot emerald"></span>
+                    <i class="fa-solid fa-bolt text-amber"></i> Gemini 2.5 Flash (Free API)
+                </div>
+                <button id="btn-api-key" class="btn btn-outline" title="Cấu hình Gemini API Key">
+                    <i class="fa-solid fa-key"></i> API Key
+                </button>
+            </div>
+        </header>
+
+        <!-- API Key Modal -->
+        <div id="modal-api-key" class="modal-backdrop hidden">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <h3><i class="fa-solid fa-key text-amber"></i> Cấu hình Gemini API Key</h3>
+                    <button class="modal-close">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-subtle">Nhập Google Gemini API Key của bạn (hoặc để trống để sử dụng biến môi trường/chế độ mặc định):</p>
+                    <div class="form-group">
+                        <label for="input-api-key">Gemini API Key:</label>
+                        <input type="password" id="input-api-key" placeholder="AIzaSy..." class="input-control">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="btn-save-key" class="btn btn-primary">Lưu API Key</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- KB Tooltip Popover -->
+        <div id="kb-tooltip-popover" class="popover-card hidden">
+            <div class="popover-header">
+                <i class="fa-solid fa-database text-indigo"></i> <strong id="popover-title">Entity Attributes</strong>
+            </div>
+            <div class="popover-body" id="popover-content">
+                <!-- JSON attributes rendered via JS -->
+            </div>
+        </div>
+
+        <!-- Main Workspace Grid -->
+        <main class="workspace-grid">
+            <!-- Left Panel: Controls & Input -->
+            <section class="panel control-panel">
+                <div class="panel-header">
+                    <h2><i class="fa-solid fa-sliders"></i> Dữ Liệu Đầu Vào</h2>
+                    <button id="btn-load-sample" class="btn btn-sm btn-accent">
+                        <i class="fa-solid fa-file-csv"></i> Chọn Mẫu AmbiK
+                    </button>
+                </div>
+
+                <!-- Input Type Selection Tabs (3 Modes) -->
+                <div class="tab-group">
+                    <button class="tab-btn active" data-tab="plan_amb_task">
+                        <i class="fa-solid fa-list-check"></i> 1. Chuỗi Hành Động
+                    </button>
+                    <button class="tab-btn" data-tab="text">
+                        <i class="fa-solid fa-align-left"></i> 2. Văn Bản Thường
+                    </button>
+                    <button class="tab-btn" data-tab="chat">
+                        <i class="fa-solid fa-comments"></i> 3. Trò Chuyện (Chat)
+                    </button>
+                </div>
+
+                <!-- Mode 1 & 2 Input Content Area -->
+                <div class="form-group" id="group-direct-input">
+                    <div class="label-row">
+                        <label for="input-content" id="label-input-content">Chuỗi các bước tạo món ăn (plan_amb_task):</label>
+                        <span class="badge badge-info" id="badge-input-mode">Ví dụ: 1. Pick up mug. 2. Pour...</span>
+                    </div>
+                    <textarea id="input-content" rows="6" class="textarea-control" placeholder="1. Locate the food storage container.
+2. Locate the honey.
+3. Open the honey jar or bottle.
+4. Pour honey into the food storage container until it is full.
+5. Close the honey jar or bottle."></textarea>
+                </div>
+
+                <!-- Mode 3: Interactive Chat Container -->
+                <div class="chat-mode-container hidden" id="group-chat-input">
+                    <div class="chat-header-bar">
+                        <span class="text-subtle"><i class="fa-solid fa-comments text-pink"></i> Hội thoại tương tác trực tiếp với Robot</span>
+                        <button id="btn-reset-chat" class="btn btn-sm btn-outline" title="Reset cuộc hội thoại mới">
+                            <i class="fa-solid fa-rotate-right text-amber"></i> Làm mới Chat
+                        </button>
+                    </div>
+                    <div class="chat-messages-box" id="chat-messages-box">
+                        <div class="chat-msg robot-msg">
+                            <div class="msg-avatar"><i class="fa-solid fa-robot"></i></div>
+                            <div class="msg-bubble">
+                                Chào bạn! Tôi là Robot Nhà Bếp. Hãy trò chuyện hoặc đưa ra yêu cầu (vd: <em>"Pha cho tôi 1 ly cà phê"</em>, <em>"Hâm nóng bánh mì trong lò vi sóng"</em>). Tôi sẽ tự động phân tích và hỏi lại bạn nếu có điểm mơ hồ!
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chat-input-row">
+                        <input type="text" id="input-chat-msg" placeholder="Nhập tin nhắn trò chuyện với Robot..." class="input-control">
+                        <button id="btn-send-chat" class="btn btn-primary">
+                            <i class="fa-solid fa-paper-plane"></i> Gửi
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Environment Manager (AmbiK Style & KB Interactive Chips) -->
+                <div class="form-group environment-section">
+                    <div class="label-row">
+                        <label><i class="fa-solid fa-kitchen-set text-indigo"></i> Trạng Thái Môi Trường KB (Textual Kitchen KB):</label>
+                        <span class="text-subtle" id="env-count">5 vật thể</span>
+                    </div>
+                    <p class="text-subtle" style="font-size:0.75rem; margin-bottom:0.3rem;"><i class="fa-solid fa-circle-info text-cyan"></i> Bấm hoặc di chuột lên Tag vật thể để xem thuộc tính ẩn từ <strong>kitchen_kb.json</strong> (Grounding):</p>
+                    <div class="env-tags-container" id="env-tags">
+                        <!-- Environment chips rendered via JS -->
+                    </div>
+                    <div class="add-env-row">
+                        <input type="text" id="input-new-env" placeholder="Thêm vật thể (vd: a glass mug, clean sponge)..." class="input-control">
+                        <button id="btn-add-env" class="btn btn-icon btn-secondary">
+                            <i class="fa-solid fa-plus"></i>
+                        </button>
+                    </div>
+                    <div class="env-presets">
+                        <span class="text-subtle">Gợi ý nhanh:</span>
+                        <button class="preset-btn" data-env="a ceramic mug, a glass mug, coffee machine, milk">Cà phê</button>
+                        <button class="preset-btn" data-env="a clean sponge, a dirty sponge, dish soap, knife block">Rửa chén</button>
+                        <button class="preset-btn" data-env="plastic food storage container, glass food storage container, honey">Đồ đựng</button>
+                    </div>
+                </div>
+
+                <!-- Submit Button for Direct Modes -->
+                <button id="btn-analyze" class="btn btn-primary btn-block btn-lg">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> Phân Tích Neuro-Symbolic
+                </button>
+            </section>
+
+            <!-- Right Panel: Model Reasoning Pipeline & Output -->
+            <section class="panel output-panel">
+                <div class="panel-header">
+                    <h2><i class="fa-solid fa-diagram-project"></i> Quá Trình Phân Tích Chi Tiết Của Model</h2>
+                    <div class="header-status" id="pipeline-status">
+                        <span class="status-chip idle"><i class="fa-solid fa-circle-dot"></i> Sẵn sàng</span>
+                    </div>
+                </div>
+
+                <!-- Pipeline Stepper Progress Bar -->
+                <div class="pipeline-stepper">
+                    <div class="step-item" id="step-node-1">
+                        <div class="step-icon"><i class="fa-solid fa-magnifying-glass"></i></div>
+                        <div class="step-label">Stage 1: Grounding</div>
+                    </div>
+                    <div class="step-connector"></div>
+                    <div class="step-item" id="step-node-2">
+                        <div class="step-icon"><i class="fa-solid fa-brain"></i></div>
+                        <div class="step-label">Stage 2: Neuro Detector</div>
+                    </div>
+                    <div class="step-connector"></div>
+                    <div class="step-item" id="step-node-3">
+                        <div class="step-icon"><i class="fa-solid fa-circle-question"></i></div>
+                        <div class="step-label">Stage 3: Clarification</div>
+                    </div>
+                    <div class="step-connector"></div>
+                    <div class="step-item" id="step-node-4">
+                        <div class="step-icon"><i class="fa-solid fa-square-root-variable"></i></div>
+                        <div class="step-label">Stage 4: Symbolic LTL</div>
+                    </div>
+                </div>
+
+                <!-- Output Display Body -->
+                <div class="output-content" id="output-content">
+                    <!-- Placeholder State -->
+                    <div class="empty-state" id="empty-state">
+                        <div class="empty-illustration">
+                            <i class="fa-solid fa-network-wired"></i>
+                        </div>
+                        <h3>Chưa có dữ liệu phân tích</h3>
+                        <p>Nhập chuỗi hành động, đoạn văn bản hoặc trò chuyện với Robot ở bên trái để xem kết quả phân tích Neuro-Symbolic của Gemini 2.5 Flash.</p>
+                    </div>
+
+                    <!-- Analysis Pipeline Results Container -->
+                    <div class="analysis-results hidden" id="analysis-results">
+                        
+                        <!-- Summary Banner -->
+                        <div class="summary-card">
+                            <div class="summary-header">
+                                <div class="summary-title">
+                                    <i class="fa-solid fa-sparkles text-amber"></i>
+                                    <h3>Tổng Quan Phân Tích AmbiK Neuro-Symbolic</h3>
+                                </div>
+                                <div id="overall-badge" class="badge badge-purple">
+                                    Preferences
+                                </div>
+                            </div>
+                            <p id="summary-text" class="summary-p">Đang tải...</p>
+                        </div>
+
+                        <!-- Stage 1 Card: Grounding & KB -->
+                        <div class="pipeline-card" id="card-stage-1">
+                            <div class="card-header">
+                                <span class="card-num">Stage 1</span>
+                                <h4><i class="fa-solid fa-boxes-stacked text-indigo"></i> Grounding & Textual Kitchen KB Integration</h4>
+                            </div>
+                            <div class="card-body">
+                                <div class="grounding-grid">
+                                    <div class="ground-col">
+                                        <h5>Vật thể trích xuất (Extracted Objects):</h5>
+                                        <ul id="list-extracted-objects" class="tags-list"></ul>
+                                    </div>
+                                    <div class="ground-col">
+                                        <h5>Khớp với Kitchen KB (Matched Entities):</h5>
+                                        <ul id="list-matched-env" class="tags-list env-matched"></ul>
+                                    </div>
+                                </div>
+
+                                <!-- Missing Environment Object Suggestion Banner & 1-Click Add -->
+                                <div id="missing-object-suggestion-box" class="missing-suggestion-banner hidden">
+                                    <div class="suggestion-icon"><i class="fa-solid fa-circle-exclamation text-amber"></i></div>
+                                    <div class="suggestion-text">
+                                        <strong>Phát hiện môi trường thiếu vật thể cho nhiệm vụ:</strong>
+                                        <span id="missing-object-names" class="text-amber">small bowl</span>
+                                        <p class="text-subtle" style="font-size:0.78rem; margin-top:0.2rem;">Bạn có muốn thêm vật thể này vào Môi trường bếp không?</p>
+                                    </div>
+                                    <button id="btn-add-missing-obj" class="btn btn-sm btn-primary">
+                                        <i class="fa-solid fa-plus"></i> Thêm Vào Môi Trường
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Stage 2 Card: Neuro Component - Semantic Entropy Quantification -->
+                        <div class="pipeline-card" id="card-stage-2">
+                            <div class="card-header">
+                                <span class="card-num">Stage 2 (Neuro)</span>
+                                <h4><i class="fa-solid fa-chart-line text-purple"></i> Uncertainty Quantification via Semantic Entropy Engine</h4>
+                            </div>
+                            <div class="card-body">
+                                <!-- Semantic Entropy Score Gauge -->
+                                <div class="entropy-gauge-card">
+                                    <div class="gauge-header">
+                                        <span><i class="fa-solid fa-gauge-high text-amber"></i> <strong>Semantic Entropy Score (H):</strong></span>
+                                        <span class="entropy-val" id="entropy-score-val">H = 0.00</span>
+                                    </div>
+                                    <div class="gauge-bar-bg">
+                                        <div class="gauge-bar-fill" id="gauge-bar-fill" style="width: 0%;"></div>
+                                    </div>
+                                    <div class="gauge-footer">
+                                        <span class="text-subtle">0.0 (Xác định)</span>
+                                        <span class="text-subtle" style="color:var(--accent-amber);">Ngưỡng &theta; = 0.5 (Bất định cao &rarr; Preferences)</span>
+                                        <span class="text-subtle">1.0 (Mơ hồ tối đa)</span>
+                                    </div>
+                                </div>
+
+                                <p class="card-subtext" style="margin-top:0.75rem;">Phân loại chi tiết các điểm mơ hồ theo 3 nhóm AmbiK:</p>
+                                <div class="ambiguity-cards-list" id="ambiguity-cards-list"></div>
+                            </div>
+                        </div>
+
+                        <!-- Explicit Word Disambiguation Mapping Table -->
+                        <div class="pipeline-card" id="card-stage-mapping">
+                            <div class="card-header">
+                                <span class="card-num">Bảng Giải Nghĩa</span>
+                                <h4><i class="fa-solid fa-arrow-right-arrow-left text-pink"></i> Chi Tiết Đối Chiếu Từ Mơ Hồ → Từ Rõ Ràng (Word Mapping)</h4>
+                            </div>
+                            <div class="card-body">
+                                <div class="mapping-table-wrapper">
+                                    <table class="mapping-table">
+                                        <thead>
+                                            <tr>
+                                                <th><i class="fa-solid fa-circle-question text-amber"></i> Từ / Cụm từ mơ hồ</th>
+                                                <th><i class="fa-solid fa-arrow-right text-indigo"></i> Từ / Ý định rõ ràng sau giải nghĩa</th>
+                                                <th>Phân loại AmbiK</th>
+                                                <th>Giải thích suy luận</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="table-mapping-body"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Stage 3 Card: HRI Component - k-Choice Clarification Generator -->
+                        <div class="pipeline-card" id="card-stage-3">
+                            <div class="card-header">
+                                <span class="card-num">Stage 3 (HRI)</span>
+                                <h4><i class="fa-solid fa-comments text-pink"></i> Optimal k-Choice Clarification Engine (Information Gain)</h4>
+                            </div>
+                            <div class="card-body">
+                                <!-- User Answer Selection Status Alert Banner -->
+                                <div id="user-selection-alert" class="selection-alert-banner hidden">
+                                    <i class="fa-solid fa-circle-check text-emerald"></i>
+                                    <span id="text-user-selection-status">Đã ghi nhận lựa chọn của bạn!</span>
+                                </div>
+
+                                <div id="clarification-box" class="clarification-banner">
+                                    <div class="clarify-icon"><i class="fa-solid fa-circle-question text-pink"></i></div>
+                                    <div class="clarify-content" style="width:100%;">
+                                        <h5 id="clarify-question-title">Câu hỏi trắc nghiệm k-Choice từ Robot:</h5>
+                                        <blockquote id="text-clarify-question">"Bạn muốn sử dụng loại ly nào?"</blockquote>
+                                        
+                                        <!-- Interactive k-Choice Options Cards (A, B, C) -->
+                                        <div class="k-choice-options-grid hidden" id="k-choice-options-grid">
+                                            <!-- Rendered dynamically -->
+                                        </div>
+
+                                        <!-- Custom Answer Input Box (Lựa chọn Tự Nhập) -->
+                                        <div class="custom-answer-row hidden" id="custom-answer-row">
+                                            <input type="text" id="input-custom-answer" placeholder="Hoặc tự nhập câu trả lời/lựa chọn khác..." class="input-control">
+                                            <button id="btn-submit-custom-answer" class="btn btn-sm btn-accent">
+                                                <i class="fa-solid fa-paper-plane"></i> Gửi Câu Trả Lời
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Stage 4 Card: Symbolic Component - LTL Formula & Formal Verification -->
+                        <div class="pipeline-card" id="card-stage-4">
+                            <div class="card-header">
+                                <span class="card-num">Stage 4 (Symbolic)</span>
+                                <h4><i class="fa-solid fa-shield-check text-emerald"></i> Symbolic LTL Translation & Formal Verification (Model Checking)</h4>
+                            </div>
+                            <div class="card-body">
+                                <!-- Pending User Clarification State Banner -->
+                                <div id="stage4-pending-banner" class="stage4-pending-box hidden">
+                                    <div class="pending-icon"><i class="fa-solid fa-circle-pause text-amber"></i></div>
+                                    <div class="pending-text">
+                                        <strong>⏸️ Stage 4 Tạm Dừng: Chờ Phản Hồi Từ Người Dùng</strong>
+                                        <p class="text-subtle" style="font-size:0.8rem; margin-top:0.2rem;">Phát hiện sự mơ hồ hoặc thiếu thông tin ở Stage 2/3. Robot đang chờ bạn chọn phương án A/B/C hoặc nhập câu trả lời ở Stage 3 để giải mờ và khởi tạo Kế hoạch Nguyên tử!</p>
+                                    </div>
+                                </div>
+
+                                <!-- Verified Safe Badge & LTL Formula Box -->
+                                <div id="stage4-execution-content">
+                                    <div class="ltl-spec-card">
+                                        <div class="ltl-header">
+                                            <div class="ltl-title">
+                                                <i class="fa-solid fa-terminal text-cyan"></i>
+                                                <strong>Linear Temporal Logic (LTL) Specification:</strong>
+                                            </div>
+                                            <div id="verified-safe-badge" class="badge badge-green">
+                                                <i class="fa-solid fa-circle-check"></i> Verified Safe (Model Checker)
+                                            </div>
+                                        </div>
+                                        <pre id="ltl-formula-text" class="ltl-codeblock">G(!IsOn(Microwave, Metal)) & F(In(CeramicMug, Table))</pre>
+                                    </div>
+
+                                    <h5 style="margin-top:1rem; margin-bottom:0.5rem; font-size:0.85rem; color:#cbd5e1;">Chuỗi Hành Động Nguyên Tử Đã Kiểm Chứng (Safe Action Steps):</h5>
+                                    <div class="plan-steps-list" id="plan-steps-list"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Raw JSON Toggle -->
+                        <div class="raw-json-section">
+                            <button id="btn-toggle-json" class="btn btn-sm btn-outline">
+                                <i class="fa-solid fa-code"></i> Xem phản hồi JSON gốc của Gemini 2.5 Flash
+                            </button>
+                            <pre id="raw-json-viewer" class="json-codeblock hidden"></pre>
+                        </div>
+
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Sample Drawer Modal -->
+    <div id="modal-samples" class="modal-backdrop hidden">
+        <div class="modal-card modal-lg">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-database text-indigo"></i> Chọn Mẫu Từ Dataset AmbiK</h3>
+                <button class="modal-close-samples">&times;</button>
+            </div>
+            <div class="modal-body modal-scroll">
+                <div class="sample-search">
+                    <input type="text" id="input-search-sample" placeholder="Tìm kiếm câu lệnh mẫu..." class="input-control">
+                </div>
+                <div class="samples-list" id="samples-list-container">
+                    <div class="loading-spinner"><i class="fa-solid fa-spinner fa-spin"></i> Đang tải dữ liệu tệp AmbiK...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
