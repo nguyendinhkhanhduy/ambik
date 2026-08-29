@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BÁO CÁO HỆ THỐNG XỬ LÝ MƠ HỒ NGÔN NGỮ TỰ NHIÊN CHO ROBOT NHÀ BẾP — Kiến Trúc Neuro-Symbolic AmbiK</title>
+    
+    <!-- KaTeX CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --text-color: #f8fafc;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --card-border: rgba(255, 255, 255, 0.1);
+            --accent-blue: #6366f1;
+            --accent-green: #10b981;
+            --accent-amber: #f59e0b;
+            --accent-red: #ef4444;
+            --gradient-1: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            background: var(--gradient-1);
+        }
+
+        /* Animated Background for specific slides */
+        .animated-bg {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -1;
+            overflow: hidden;
+        }
+        
+        .blob {
+            position: absolute;
+            filter: blur(80px);
+            opacity: 0.4;
+            animation: move 20s infinite alternate;
+        }
+
+        .blob-1 { top: -10%; left: -10%; width: 50vw; height: 50vw; background: var(--accent-blue); border-radius: 50%; }
+        .blob-2 { bottom: -20%; right: -10%; width: 60vw; height: 60vw; background: #8b5cf6; border-radius: 50%; animation-delay: -5s; }
+        .blob-3 { top: 40%; left: 40%; width: 40vw; height: 40vw; background: var(--accent-green); border-radius: 50%; animation-delay: -10s; opacity: 0.2; }
+
+        @keyframes move {
+            from { transform: translate(0, 0) scale(1); }
+            to { transform: translate(10%, 10%) scale(1.1); }
+        }
+
+        /* Slides Container */
+        #slides-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        .slide {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.6s ease-in-out, transform 0.6s ease-in-out;
+            transform: translateY(20px);
+            display: flex;
+            flex-direction: column;
+            padding: 4rem 6rem;
+            z-index: 1;
+        }
+
+        .slide.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+            z-index: 10;
+        }
+
+        /* Typography */
+        h1, h2, h3 { font-weight: 700; line-height: 1.2; margin-bottom: 1rem; }
+        .slide-title { font-size: 2.5rem; text-align: center; margin-bottom: 0.5rem; color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+        .slide-subtitle { font-size: 1.5rem; text-align: center; color: #94a3b8; margin-bottom: 2rem; font-weight: 400; }
+        
+        /* Glassmorphism Cards */
+        .glass-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--card-border);
+            border-radius: 1rem;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            margin-bottom: 1.5rem;
+        }
+
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+        .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; }
+
+        /* Lists */
+        ul, ol { padding-left: 2rem; font-size: 1.25rem; line-height: 1.6; margin-bottom: 1rem; }
+        li { margin-bottom: 0.75rem; }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 1.1rem;
+            background: rgba(30, 41, 59, 0.5);
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        th, td { padding: 1rem; text-align: left; border-bottom: 1px solid var(--card-border); }
+        th { background: rgba(0,0,0,0.3); font-weight: 600; color: var(--accent-blue); }
+        tr:nth-child(even) { background: rgba(255,255,255,0.02); }
+
+        /* Code Blocks */
+        pre {
+            background: #0f172a !important;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            border: 1px solid #334155;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.1rem;
+            overflow-x: auto;
+            margin: 1rem 0;
+            color: #e2e8f0;
+        }
+        code { font-family: 'JetBrains Mono', monospace; color: #a78bfa; background: rgba(0,0,0,0.2); padding: 0.2rem 0.4rem; border-radius: 0.25rem; }
+
+        /* Mermaid */
+        .mermaid { text-align: center; margin: 2rem 0; background: rgba(255,255,255,0.05); padding: 2rem; border-radius: 1rem; }
+
+        /* Utility classes */
+        .text-blue { color: var(--accent-blue); }
+        .text-green { color: var(--accent-green); }
+        .text-amber { color: var(--accent-amber); }
+        .text-red { color: var(--accent-red); }
+        .text-center { text-align: center; }
+        
+        .flex-center { display: flex; align-items: center; justify-content: center; flex-direction: column; height: 100%; }
+
+        /* Navigation & Progress */
+        .nav-zones { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; pointer-events: none; display: flex; }
+        .nav-zone { width: 15%; height: 100%; pointer-events: auto; cursor: pointer; opacity: 0; transition: opacity 0.3s; }
+        .nav-zone:hover { opacity: 0.1; background: white; }
+        
+        .progress-bar-container { position: absolute; bottom: 0; left: 0; width: 100%; height: 4px; background: rgba(255,255,255,0.1); z-index: 20; }
+        .progress-bar { height: 100%; background: linear-gradient(90deg, var(--accent-blue), var(--accent-green)); width: 0%; transition: width 0.3s ease; }
+        
+        .slide-counter { position: absolute; bottom: 15px; right: 20px; font-size: 1rem; color: #94a3b8; z-index: 20; font-family: 'JetBrains Mono', monospace; }
+        
+        /* Math display */
+        .katex-display { margin: 1.5rem 0 !important; font-size: 1.3em; }
+    </style>
+</head>
+<body>
+
+    <div class="animated-bg">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+    </div>
+
+    <div class="nav-zones">
+        <div class="nav-zone left" onclick="prevSlide()"></div>
+        <div class="nav-zone right" onclick="nextSlide()"></div>
+    </div>
+    
+    <div class="progress-bar-container">
+        <div class="progress-bar" id="progress-bar"></div>
+    </div>
+    <div class="slide-counter" id="slide-counter">1 / 30</div>
+
+    <div id="slides-container">
+
+        <!-- SLIDE 1: Title Slide -->
+        <div class="slide flex-center">
+            <h1 class="slide-title" style="font-size: 3.5rem; margin-bottom: 1rem;">HỆ THỐNG XỬ LÝ MƠ HỒ NGÔN NGỮ TỰ NHIÊN<br>CHO ROBOT NHÀ BẾP</h1>
+            <h2 class="slide-subtitle" style="font-size: 2rem; color: var(--accent-blue); font-weight: 600;">Kiến Trúc Neuro-Symbolic AmbiK Pipeline</h2>
+            <div class="glass-card" style="margin-top: 3rem; padding: 1.5rem 3rem;">
+                <p style="font-size: 1.25rem; color: #cbd5e1; text-align: center;">Báo cáo Kỹ thuật — Hệ thống Backend AI</p>
+            </div>
+        </div>
+
+        <!-- SLIDE 2: Mục lục -->
+        <div class="slide">
+            <h2 class="slide-title">Mục lục (Table of Contents)</h2>
+            <div class="glass-card">
+                <ol style="font-size: 1.4rem; padding-left: 3rem;">
+                    <li>Tổng quan Hệ thống (Input/Output)</li>
+                    <li>Bước 1: Semantic Grounding & Ánh xạ Thực thể</li>
+                    <li>Bước 2: Phân loại Sớm Thích ứng 2 Tầng (Early Routing)</li>
+                    <li>Bước 3: Lượng hóa Bất định bằng Semantic Entropy</li>
+                    <li>Bước 4: Giải nghĩa Mơ hồ & Propositional Lifting</li>
+                    <li>Bước 5: Kiểm chứng An toàn Hình thức (LTL Model Checking)</li>
+                    <li>Hạn chế & Kế hoạch Cải tiến</li>
+                </ol>
+            </div>
+        </div>
+
+        <!-- SLIDE 3: Tổng quan — Input -->
+        <div class="slide">
+            <h2 class="slide-title">ĐẦU VÀO HỆ THỐNG (System Input)</h2>
+            <div class="glass-card">
+                <ul>
+                    <li><strong>Câu lệnh ngôn ngữ tự nhiên</strong> (Song ngữ Việt-Anh):<br>
+                        <span class="text-blue">Ví dụ: "Pha cho tôi 1 ly cà phê"</span>
+                    </li>
+                    <li style="margin-top: 1.5rem;"><strong>Trạng thái Môi trường Bếp</strong> (AmbiK <code>environment_full</code>):<br>
+                        Danh sách chuỗi văn bản các vật thể hiện có: <code>["a ceramic mug", "a glass mug", "coffee machine", ...]</code>
+                    </li>
+                    <li style="margin-top: 1.5rem;"><strong>Trích xuất Thuộc tính Vật lý & Khả năng Tương tác</strong> (Physical Affordances):<br>
+                        Trích xuất trực tiếp từ văn bản: <code>{material, microwave_safe, is_clean, location}</code>
+                    </li>
+                    <li style="margin-top: 1.5rem;"><strong>Lịch sử hội thoại</strong> (Chat History):<br>
+                        Ngữ cảnh hội thoại trước đó
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- SLIDE 4: Tổng quan — Output -->
+        <div class="slide">
+            <h2 class="slide-title">ĐẦU RA HỆ THỐNG (System Output)</h2>
+            <div class="glass-card grid-2">
+                <div>
+                    <h3 class="text-green">🤖 Execution & Safety</h3>
+                    <ul>
+                        <li><strong>Kế hoạch hành vi an toàn</strong> (Formally Verified Execution Plan): Chuỗi hành động nguyên tử đã được kiểm chứng toán học</li>
+                        <li><strong>Chứng nhận an toàn LTL</strong> (Safety Certificate): Badge <span style="background:#10b981; padding:2px 8px; border-radius:4px; font-size:0.9rem;">Verified Safe</span> / <span style="background:#ef4444; padding:2px 8px; border-radius:4px; font-size:0.9rem;">Safety Violation</span></li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="text-amber">🧠 Semantics & Interaction</h3>
+                    <ul>
+                        <li><strong>Chỉ số bất định ngữ nghĩa</strong> (Semantic Entropy Score H): Giá trị định lượng mức độ mơ hồ</li>
+                        <li><strong>Bảng giải nghĩa từ</strong> (Disambiguated Word Mappings): Ánh xạ từ mơ hồ &rarr; từ rõ ràng</li>
+                        <li><strong>Câu hỏi trắc nghiệm k-Choice</strong> (HRI Clarification): Câu hỏi tương tác người-robot</li>
+                        <li><strong>Phản hồi hội thoại tiếng Việt</strong> (Chat Reply): Câu trả lời thân thiện cho người dùng</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 5: Pipeline Architecture Overview -->
+        <div class="slide" style="display:flex;flex-direction:column;align-items:center;justify-content:center;">
+            <h2 class="slide-title" style="margin-bottom:0.5rem;">KIẾN TRÚC TỔNG QUAN PIPELINE 5 BƯỚC</h2>
+            <div class="mermaid" style="padding:0.8rem 1rem;margin:0.5rem auto;max-height:78vh;overflow:visible;">
+                graph LR
+                    A["🎤 Input NL"] --> B["1️⃣ Semantic<br/>Grounding"]
+                    B --> C["2️⃣ Early<br/>Routing"]
+                    C --> D{"Skip<br/>N=5?"}
+                    D -- "✅ Yes" --> F["4️⃣ Disambiguation<br/>& Lifting"]
+                    D -- "❌ No" --> E["3️⃣ Semantic<br/>Entropy"]
+                    E --> F
+                    F --> G["5️⃣ LTL Safety<br/>Verification"]
+                    G --> H["📋 Safe<br/>Execution Plan"]
+            </div>
+        </div>
+
+        <!-- SLIDE 6: BƯỚC 1 Title -->
+        <div class="slide flex-center">
+            <h1 class="slide-title text-blue">BƯỚC 1: SEMANTIC GROUNDING & ÁNH XẠ THỰC THỂ</h1>
+            <h2 class="slide-subtitle">Perception-Action Binding</h2>
+            <div class="glass-card" style="max-width: 800px; text-align: center;">
+                <p style="font-size: 1.3rem;">Ánh xạ ngôn ngữ tự nhiên song ngữ Việt-Anh vào các thực thể vật lý trong môi trường bếp thực tế.</p>
+            </div>
+        </div>
+
+        <!-- SLIDE 7: Bước 1 — Chi tiết -->
+        <div class="slide">
+            <h2 class="slide-title">4 Giai đoạn xử lý của Bước 1</h2>
+            <div class="grid-2">
+                <div class="glass-card">
+                    <h3 class="text-blue">1.1 Tokenization & Trích xuất N-gram</h3>
+                    <p>Tách câu lệnh thành các token, sinh bigram/trigram để nắm bắt cụm từ.</p>
+                </div>
+                <div class="glass-card">
+                    <h3 class="text-green">1.2 Cross-Lingual Dictionary Lookup</h3>
+                    <p>Tra cứu từ điển song ngữ <code>BILINGUAL_KITCHEN_MAP</code> (Tiếng Việt &harr; Tiếng Anh).</p>
+                </div>
+                <div class="glass-card">
+                    <h3 class="text-amber">1.3 Fuzzy String Matching</h3>
+                    <p>So khớp mờ giữa các ứng viên với danh sách vật thể trong Environment State (ngưỡng tương đồng &ge; 80%).</p>
+                </div>
+                <div class="glass-card">
+                    <h3 class="text-red">1.4 Entity Attribute Enrichment</h3>
+                    <p>Trích xuất trực tiếp thuộc tính vật lý từ văn bản AmbiK (material, microwave_safe, is_clean, location).</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 8: Bước 1 — Output -->
+        <div class="slide">
+            <h2 class="slide-title">Output của Bước 1</h2>
+            <div class="glass-card">
+                <pre><code>{
+  "matched_environment": ["coffee_machine", "a ceramic mug", "a glass mug"],
+  "candidate_matches": {
+    "ly": ["a ceramic mug", "a glass mug"],
+    "cà phê": ["coffee_machine"]
+  },
+  "entity_attributes": {
+    "a ceramic mug": {
+      "material": "ceramic",
+      "microwave_safe": true,
+      "is_clean": true,
+      "location": "cupboard"
+    }
+  },
+  "tool_vi_name": {
+    "a ceramic mug": "ly sứ",
+    "coffee_machine": "máy pha cà phê"
+  }
+}</code></pre>
+            </div>
+        </div>
+
+        <!-- SLIDE 9: BƯỚC 2 Title -->
+        <div class="slide flex-center">
+            <h1 class="slide-title text-green">BƯỚC 2: PHÂN LOẠI SỚM BẢO GIÁC (CONFORMAL EARLY ROUTING)</h1>
+            <h2 class="slide-subtitle">Distribution-Free Statistical Guarantee Classifier (Chuẩn KnowNo — NeurIPS 2023)</h2>
+            <div class="glass-card" style="max-width: 800px; text-align: center;">
+                <p style="font-size: 1.3rem;">Mục tiêu: Tiết kiệm 83.3% chi phí API bằng cách bypass N=5 Semantic Entropy sampling cho các câu lệnh rõ ràng, với <strong>Cam kết Thống kê Phổ quát (&ge; 95% không bao giờ đi tắt sai)</strong>.</p>
+            </div>
+        </div>
+
+        <!-- SLIDE 10: Bước 2 — Hiệu chuẩn q_hat -->
+        <div class="slide">
+            <h2 class="slide-title">Hiệu chuẩn Phân vị Bảo giác \(\hat{q}\) (Conformal Calibration)</h2>
+            <div class="glass-card">
+                <ul>
+                    <li><strong>Dữ liệu hiệu chuẩn:</strong> \(n=100\) mẫu độc lập từ <code>ambik_calib_100.csv</code></li>
+                    <li><strong>Mức sai số cho phép:</strong> \(\alpha = 0.05 \implies\) Độ tin cậy bảo đảm \(1 - \alpha = 95\%\)</li>
+                    <li><strong>Điểm Không tương thích (Non-conformity Score):</strong> \(s_i = 1 - \hat{P}(y_{\text{true}} \mid x_i)\)</li>
+                </ul>
+                <div style="text-align: center; margin: 1.5rem 0;">
+                    $$\hat{q} = \text{Quantile}_{\frac{\lceil (n+1)(1-\alpha) \rceil}{n}} \left( \{s_1, s_2, \dots, s_n\} \right)$$
+                </div>
+                <div style="background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 0.5rem; border-left: 4px solid var(--accent-green);">
+                    <em>Ý nghĩa:</em> \(\hat{q} = 0.1500\) được tính toán tự động từ phân vị thực nghiệm, hoàn toàn loại bỏ việc gán trọng số heuristic chủ quan!
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 11: Bước 2 — Tập Dự Báo Bảo Giác -->
+        <div class="slide">
+            <h2 class="slide-title">Tập Dự Báo Bảo Giác \(\Gamma(x)\) & Quyết Định Đi Tắt</h2>
+            <div class="glass-card">
+                <p>Xây dựng Tập Dự Báo Bảo Giác (Conformal Prediction Set) theo lý thuyết của Ren et al. (NeurIPS 2023):</p>
+                <div style="text-align: center; margin: 1.5rem 0;">
+                    $$\Gamma(x) = \left\{ y \in \mathcal{Y} \mid 1 - \hat{P}(y \mid x) \le \hat{q} \right\}$$
+                </div>
+                <div style="background: rgba(0,0,0,0.3); padding: 1.25rem; border-radius: 0.5rem; border-left: 4px solid var(--accent-blue);">
+                    <strong>Quy tắc Quyết định Đi tắt (Conformal Fast Route):</strong><br>
+                    &bull; Nếu \(|\Gamma(x)| = 1\) VÀ \(\Gamma(x) = \{\text{Unambiguous}\}\) &rarr; <span class="text-green"><strong>Fast Route (Skip N=5, H=0.00)</strong></span><br>
+                    <span style="font-size: 0.9rem; color: #a7f3d0; margin-left: 1.5rem;">&rarr; Chứng minh toán học: Chắc chắn &ge; 95% câu lệnh này rõ ràng, không bao giờ đi tắt nhầm!</span><br>
+                    &bull; Nếu \(|\Gamma(x)| > 1\) (Tập chứa nhiều nhãn ứng viên) &rarr; <span class="text-amber"><strong>Full Pipeline (Kích hoạt Bước 3: N=5 Entropy)</strong></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 12: BƯỚC 3 Title -->
+        <div class="slide flex-center">
+            <h1 class="slide-title text-amber">BƯỚC 3: LƯỢNG HÓA BẤT ĐỊNH BẰNG SEMANTIC ENTROPY</h1>
+            <h2 class="slide-subtitle">Shannon Entropy Engine — Đo lường mức độ mơ hồ bằng toán học</h2>
+        </div>
+
+        <!-- SLIDE 13: Bước 3 — Quy trình -->
+        <div class="slide">
+            <h2 class="slide-title">Quy trình 3 Chặng xử lý</h2>
+            <div class="glass-card">
+                <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <div style="font-size: 2.5rem;">🔄</div>
+                        <div>
+                            <h3 class="text-blue" style="margin-bottom: 0.2rem;">Chặng 1: Sampling N=5</h3>
+                            <p>Gọi Gemini 5 lần liên tiếp ở T=0.7, thu về 5 kết quả phán đoán độc lập</p>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <div style="font-size: 2.5rem;">📊</div>
+                        <div>
+                            <h3 class="text-green" style="margin-bottom: 0.2rem;">Chặng 2: Clustering</h3>
+                            <p>Gom 5 kết quả vào 4 nhóm AmbiK: {Unambiguous, Common Sense, Preferences, Safety}, tính tỷ lệ <code>p(c_i)</code></p>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <div style="font-size: 2.5rem;">🧮</div>
+                        <div>
+                            <h3 class="text-amber" style="margin-bottom: 0.2rem;">Chặng 3: Entropy Computation</h3>
+                            <p>Tính chỉ số H bằng công thức Shannon</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 14: Bước 3 — Shannon Entropy -->
+        <div class="slide">
+            <h2 class="slide-title">Công thức Shannon Entropy</h2>
+            <div class="glass-card">
+                <div style="text-align: center; margin: 1.5rem 0;">
+                    $$H(X) = - \sum_{i=1}^{k} p(c_i) \cdot \log_2(p(c_i))$$
+                </div>
+                <div class="grid-2" style="margin-top: 2rem;">
+                    <div>
+                        <strong>Giải thích ký hiệu:</strong>
+                        <ul>
+                            <li><strong>H(X):</strong> Chỉ số bất định ngữ nghĩa (0.0 &rarr; 2.0)</li>
+                            <li><strong>k = 4:</strong> Số nhóm ngữ nghĩa AmbiK</li>
+                            <li><strong>c_i:</strong> Nhóm ngữ nghĩa thứ i</li>
+                            <li><strong>p(c_i) = count(c_i) / N:</strong> Xác suất xuất hiện của nhóm thứ i</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <div style="background: rgba(239, 68, 68, 0.1); padding: 1.5rem; border-radius: 0.5rem; border: 1px solid var(--accent-red);">
+                            <h4 style="color: var(--accent-red); margin-bottom: 0.5rem;">Decision threshold:</h4>
+                            <p>🟢 <strong>H < 0.50</strong> &rarr; Rõ ràng (Robot tự tin thực thi)<br><br>
+                               🔴 <strong>H &ge; 0.50</strong> &rarr; Mơ hồ (Robot tạm dừng, chuyển Bước 4)</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 15: Bước 3 — Ví dụ -->
+        <div class="slide">
+            <h2 class="slide-title">Ví dụ: Tính H cho câu lệnh 'Pha cho tôi 1 ly cà phê'</h2>
+            <div class="grid-2">
+                <div class="glass-card">
+                    <h3 class="text-blue">Tính toán Step-by-step:</h3>
+                    <ul style="font-size: 1.1rem;">
+                        <li>5 lần gọi Gemini: 3× Preferences + 2× Common Sense</li>
+                        <li>p(Preferences) = 3/5 = 0.6</li>
+                        <li>p(Common Sense) = 2/5 = 0.4</li>
+                        <li>H = -[0.6 &times; log₂(0.6) + 0.4 &times; log₂(0.4)]</li>
+                        <li>H = -[0.6 &times; (-0.737) + 0.4 &times; (-1.322)]</li>
+                        <li>H = -[-0.442 + (-0.529)] = 0.971</li>
+                        <li class="text-red" style="font-weight:bold; margin-top:1rem;">Kết luận: H = 0.971 &ge; 0.50 &rarr; MƠ HỒ CAO &rarr; Tạm dừng!</li>
+                    </ul>
+                </div>
+                <div class="glass-card">
+                    <h3 class="text-amber">Bảng diễn giải giá trị H:</h3>
+                    <table>
+                        <tr><th>H</th><th>Trạng thái</th><th>Ý nghĩa</th></tr>
+                        <tr><td>0.00</td><td>5/5 đồng thuận</td><td>Tuyệt đối nhất quán</td></tr>
+                        <tr><td>0.72</td><td>4/5 vs 1/5</td><td>Bất định thấp</td></tr>
+                        <tr><td>0.97</td><td>3/5 vs 2/5</td><td>Bất định cao</td></tr>
+                        <tr><td>2.00</td><td>Phân tán đều 4 nhóm</td><td>Mơ hồ tối đa</td></tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 16: BƯỚC 4 Title -->
+        <div class="slide flex-center">
+            <h1 class="slide-title text-blue">BƯỚC 4: GIẢI NGHĨA MƠ HỒ & TRỪU TƯỢNG HÓA MỆNH ĐỀ</h1>
+            <h2 class="slide-subtitle">Disambiguation Engine & Propositional Lifting</h2>
+        </div>
+
+        <!-- SLIDE 17: Bước 4 — Hai Nhiệm vụ -->
+        <div class="slide">
+            <h2 class="slide-title">2 Nhiệm vụ Song song của Bước 4</h2>
+            <div class="grid-2">
+                <div class="glass-card">
+                    <h3 class="text-amber">👤 Nhiệm vụ A — Hướng ra Người dùng:</h3>
+                    <ul>
+                        <li>Sinh câu hỏi trắc nghiệm k-Choice</li>
+                        <li>Biến từ mơ hồ "ly" &rarr; các tùy chọn rõ ràng:<br><code>[A: Ly sứ, B: Ly thủy tinh]</code></li>
+                        <li>Khóa kế hoạch (<code>execution_plan = []</code>) cho đến khi người dùng chọn</li>
+                    </ul>
+                </div>
+                <div class="glass-card">
+                    <h3 class="text-blue">🤖 Nhiệm vụ B — Hướng vào Máy Robot:</h3>
+                    <ul>
+                        <li>Trừu tượng hóa Mệnh đề (Propositional Lifting)</li>
+                        <li>Chuyển đổi NL &rarr; prop_1 &rarr; prop_2 &rarr; prop_3</li>
+                        <li>Tạo Bảng Ánh xạ Mệnh đề (Proposition Mapping)</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 18: Bước 4 — Tại sao Lifting -->
+        <div class="slide">
+            <h2 class="slide-title">Tại sao Lifting phải ở Bước 4?</h2>
+            <div class="glass-card">
+                <ol style="font-size: 1.3rem;">
+                    <li><strong>Phụ thuộc Dữ liệu:</strong> Bước 1/2/3 chưa chốt được thực thể cụ thể &rarr; không thể gán <code>prop_2 = PickUp(?)</code></li>
+                    <li style="margin-top: 1.5rem;"><strong>Hiệu quả Tính toán:</strong> Nếu Lifting sớm rồi bị hủy ở Bước 3 &rarr; lãng phí CPU</li>
+                    <li style="margin-top: 1.5rem;"><strong>Cầu nối cho Bước 5:</strong> Lifting tạo đầu vào chuẩn (<code>prop_1, prop_2</code>) cho Model Checker</li>
+                </ol>
+            </div>
+        </div>
+
+        <!-- SLIDE 19: Bước 4 — Lifted NL Formula -->
+        <div class="slide">
+            <h2 class="slide-title">Công thức Chuỗi Mệnh đề Trừu tượng (Lifted NL)</h2>
+            <div class="glass-card">
+                <div style="text-align: center; margin: 1.5rem 0;">
+                    $$\text{Lifted NL} = 1.\text{prop}_1 \longrightarrow 2.\text{prop}_2 \longrightarrow 3.\text{prop}_3 \longrightarrow 4.\text{prop}_4$$
+                </div>
+                <h3 style="margin-top: 2rem;">Proposition Mapping table:</h3>
+                <table>
+                    <tr>
+                        <th>Mệnh đề</th>
+                        <th>Hành động</th>
+                        <th>Biểu diễn Hình thức</th>
+                    </tr>
+                    <tr>
+                        <td>prop_1</td>
+                        <td>Tìm máy pha cà phê</td>
+                        <td><code>FindObject(coffee_machine)</code></td>
+                    </tr>
+                    <tr>
+                        <td>prop_2</td>
+                        <td>Lấy ly sứ an toàn</td>
+                        <td><code>PickUp(a ceramic mug)</code></td>
+                    </tr>
+                    <tr>
+                        <td>prop_3</td>
+                        <td>Pha chế cà phê</td>
+                        <td><code>CookObject(coffee_machine)</code></td>
+                    </tr>
+                    <tr>
+                        <td>prop_4</td>
+                        <td>Đặt lên bàn ăn</td>
+                        <td><code>PutObject(kitchen_table)</code></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <!-- SLIDE 20: BƯỚC 5 Title -->
+        <div class="slide flex-center">
+            <h1 class="slide-title text-red">BƯỚC 5: KIỂM CHỨNG AN TOÀN HÌNH THỨC</h1>
+            <h2 class="slide-subtitle">Symbolic LTL Formal Safety Verification — Tấm Khiên An Toàn Toán Học Cuối Cùng</h2>
+        </div>
+
+        <!-- SLIDE 21: Bước 5 — Kripke Structure -->
+        <div class="slide">
+            <h2 class="slide-title">Cấu trúc Toán học Kripke</h2>
+            <div class="glass-card">
+                <div style="text-align: center; margin: 2rem 0;">
+                    $$\mathcal{M}_{plan} = \langle S, S_0, R, L \rangle$$
+                </div>
+                <ul style="font-size: 1.3rem;">
+                    <li><strong>S = {s_0, s_1, ..., s_{m-1}}:</strong> Tập trạng thái (mỗi bước hành động)</li>
+                    <li><strong>S_0 = {s_0}:</strong> Trạng thái khởi đầu</li>
+                    <li><strong>R &subseteq; S &times; S:</strong> Quan hệ chuyển tiếp tuần tự (s_i &rarr; s_{i+1})</li>
+                    <li><strong>L: S &rarr; 2^{AP}:</strong> Hàm gán nhãn mệnh đề nguyên tử cho mỗi trạng thái</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- SLIDE 22: Bước 5 — CTL Formulas -->
+        <div class="slide">
+            <h2 class="slide-title">Các Công thức An toàn CTL</h2>
+            <div class="grid-2">
+                <div class="glass-card">
+                    <h3 class="text-red">Luật 1 — Chống cháy nổ vi sóng:</h3>
+                    <div style="text-align: center; margin: 1.5rem 0;">
+                        $$\phi_{mw} = \mathbf{AG}(\neg \text{unsafe\_microwave})$$
+                    </div>
+                    <p style="font-style: italic; color: #cbd5e1; text-align: center;">"Trên MỌI đường thực thi, tại MỌI trạng thái, KHÔNG BAO GIỜ có vật liệu không an toàn trong lò vi sóng"</p>
+                </div>
+                <div class="glass-card">
+                    <h3 class="text-amber">Luật 2 — Chống mất vệ sinh:</h3>
+                    <div style="text-align: center; margin: 1.5rem 0;">
+                        $$\phi_{sponge} = \mathbf{AG}(\neg \text{dirty\_sponge\_on\_clean\_dish})$$
+                    </div>
+                    <p style="font-style: italic; color: #cbd5e1; text-align: center;">"Trên MỌI đường thực thi, KHÔNG BAO GIỜ dùng giẻ bẩn lau đĩa sạch"</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 23: Bước 5 — Fixed-Point Algorithm -->
+        <div class="slide">
+            <h2 class="slide-title">Thuật toán Duyệt Đồ thị Điểm Cố Định</h2>
+            <div class="glass-card">
+                <ol style="font-size: 1.25rem;">
+                    <li><strong>Tìm tập trạng thái vi phạm:</strong> <code>Bad = {s &isin; S | unsafe_microwave &isin; L(s)}</code></li>
+                    <li><strong>Tính Tiền ảnh ngược (Backward Pre-Image):</strong> <code>Pre*(Bad)</code></li>
+                    <li><strong>Tính tập thỏa mãn:</strong> <code>SAT(AG(&not;unsafe_mw)) = S \ Pre*(Bad)</code></li>
+                    <li><strong>Phán quyết:</strong> Nếu <code>s_0 &isin; SAT</code> &rarr; <span class="text-green">AN TOÀN ✓</span> | Nếu <code>s_0 &notin; SAT</code> &rarr; <span class="text-red">VI PHẠM ✗</span></li>
+                </ol>
+                <div style="text-align: center; margin-top: 2rem; background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 0.5rem;">
+                    $$\text{SAT}\left(\mathbf{AG}(\neg \text{unsafe\_microwave})\right) = S \setminus \text{Pre}^*(\text{Bad})$$
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 24: Bước 5 — 4 Nhóm Quy tắc -->
+        <div class="slide">
+            <h2 class="slide-title">4 Nhóm Quy tắc An toàn Bao phủ Nhà bếp</h2>
+            <div class="grid-4" style="margin-top: 2rem;">
+                <div class="glass-card" style="text-align: center; border-color: var(--accent-red);">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">🔥</div>
+                    <h3 style="font-size: 1.1rem;">Chống Cháy Nổ</h3>
+                    <p style="font-size: 0.9rem; color: #94a3b8;">Kim loại/Nhựa + Lò vi sóng<br><span class="text-red">CỜ ĐỎ</span></p>
+                </div>
+                <div class="glass-card" style="text-align: center; border-color: var(--accent-amber);">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">🧫</div>
+                    <h3 style="font-size: 1.1rem;">Chống Mất Vệ sinh</h3>
+                    <p style="font-size: 0.9rem; color: #94a3b8;">Dụng cụ bẩn + Vật dụng sạch<br><span class="text-amber">CỜ VÀNG</span></p>
+                </div>
+                <div class="glass-card" style="text-align: center; border-color: #f97316;">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">🔪</div>
+                    <h3 style="font-size: 1.1rem;">Chống Sắc Nhọn</h3>
+                    <p style="font-size: 0.9rem; color: #94a3b8;">Dao/Kéo + Quăng/Rơi<br><span style="color: #f97316;">CỜ CAM</span></p>
+                </div>
+                <div class="glass-card" style="text-align: center; border-color: var(--accent-blue);">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">⚡</div>
+                    <h3 style="font-size: 1.1rem;">Chống Chập Điện</h3>
+                    <p style="font-size: 0.9rem; color: #94a3b8;">Chất lỏng + Thiết bị điện mở<br><span class="text-blue">CỜ XANH</span></p>
+                </div>
+            </div>
+            <p style="text-align: center; margin-top: 1rem; font-style: italic; color: #cbd5e1;">
+                Note: Nhãn nguy hiểm được tạo từ: Thuộc tính AmbiK Environment + Quy tắc Code Python + Thư viện pyModelChecking
+            </p>
+        </div>
+
+        <!-- SLIDE 25: Bước 5 — Ví dụ Kịch bản -->
+        <div class="slide">
+            <h2 class="slide-title">Ví dụ Kiểm chứng An toàn</h2>
+            <div class="grid-2">
+                <div class="glass-card" style="border-top: 4px solid var(--accent-green);">
+                    <h3>🟢 Kịch bản An toàn:</h3>
+                    <ul>
+                        <li><strong>Kế hoạch:</strong> Lấy ly sứ &rarr; Cho vào vi sóng</li>
+                        <li><strong>KB:</strong> material=ceramic, microwave_safe=true</li>
+                        <li><strong>L[1]:</strong> {} (không có nhãn nguy hiểm)</li>
+                        <li><strong>Kết quả:</strong> s_0 &isin; SAT &rarr; <span class="text-green">✓ Verified Safe</span></li>
+                    </ul>
+                </div>
+                <div class="glass-card" style="border-top: 4px solid var(--accent-red);">
+                    <h3>🔴 Kịch bản Vi phạm:</h3>
+                    <ul>
+                        <li><strong>Kế hoạch:</strong> Lấy bát kim loại &rarr; Cho vào vi sóng</li>
+                        <li><strong>KB:</strong> material=metal, microwave_safe=false</li>
+                        <li><strong>L[1]:</strong> {unsafe_microwave}</li>
+                        <li><strong>Kết quả:</strong> s_0 &notin; SAT &rarr; <span class="text-red">✗ VIOLATION DETECTED!</span></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 26: Tổng hợp Công thức -->
+        <div class="slide">
+            <h2 class="slide-title">TỔNG HỢP CÁC CÔNG THỨC TOÁN HỌC</h2>
+            <div class="glass-card">
+                <table>
+                    <tr>
+                        <th>#</th>
+                        <th>Tên Công thức</th>
+                        <th>Ký hiệu</th>
+                        <th>Bước</th>
+                    </tr>
+                    <tr>
+                        <td>1</td>
+                        <td>Conformal Quantile Threshold</td>
+                        <td>$$\hat{q} = \text{Quantile}_{\frac{\lceil (n+1)(1-\alpha) \rceil}{n}}(\{s_i\})$$</td>
+                        <td>Bước 2</td>
+                    </tr>
+                    <tr>
+                        <td>2</td>
+                        <td>Conformal Prediction Set</td>
+                        <td>$$\Gamma(x) = \{ y \mid 1 - P(y \mid x) \le \hat{q} \}$$</td>
+                        <td>Bước 2</td>
+                    </tr>
+                    <tr>
+                        <td>3</td>
+                        <td>Shannon Entropy</td>
+                        <td>$$H(X) = -\sum p(c_i) \log_2(p(c_i))$$</td>
+                        <td>Bước 3</td>
+                    </tr>
+                    <tr>
+                        <td>4</td>
+                        <td>Kripke Structure</td>
+                        <td>$$\mathcal{M} = \langle S, S_0, R, L \rangle$$</td>
+                        <td>Bước 5</td>
+                    </tr>
+                    <tr>
+                        <td>5</td>
+                        <td>CTL Safety (Microwave)</td>
+                        <td>$$\mathbf{AG}(\neg \text{unsafe\_microwave})$$</td>
+                        <td>Bước 5</td>
+                    </tr>
+                    <tr>
+                        <td>6</td>
+                        <td>CTL Safety (Hygiene)</td>
+                        <td>$$\mathbf{AG}(\neg \text{dirty\_sponge})$$</td>
+                        <td>Bước 5</td>
+                    </tr>
+                    <tr>
+                        <td>7</td>
+                        <td>SAT Fixed-Point</td>
+                        <td>$$\text{SAT}(\mathbf{AG}(\neg \phi)) = S \setminus \text{Pre}^*(\text{Bad})$$</td>
+                        <td>Bước 5</td>
+                    </tr>
+                    <tr>
+                        <td>7</td>
+                        <td>Lifted NL Sequence</td>
+                        <td>$$\text{prop}_1 \rightarrow \text{prop}_2 \rightarrow ... \rightarrow \text{prop}_n$$</td>
+                        <td>Bước 4</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <!-- SLIDE 27: Hạn chế -->
+        <div class="slide">
+            <h2 class="slide-title">HẠN CHẾ HIỆN TẠI CỦA HỆ THỐNG</h2>
+            <div class="glass-card">
+                <ul>
+                    <li>⚠️ <strong>Môi trường Textual tĩnh:</strong> Môi trường bếp lấy từ danh sách text <code>environment_full</code>, chưa tích hợp Camera AI 3D thời gian thực</li>
+                    <li>⚠️ <strong>Quy tắc An toàn hữu hạn:</strong> Tập trung vào các luật an toàn cốt lõi (microwave + sponge + knife), chưa bao phủ hết hóa chất/nhiệt độ cao</li>
+                    <li>⚠️ <strong>Phụ thuộc Cloud API:</strong> Semantic Entropy cần gọi Gemini 5 lần &rarr; tốn chi phí & phụ thuộc mạng</li>
+                    <li>⚠️ <strong>Từ điển Song ngữ giới hạn:</strong> <code>BILINGUAL_KITCHEN_MAP</code> chỉ bao phủ ~25 cặp từ Việt-Anh</li>
+                    <li>⚠️ <strong>Chưa có vòng lặp Feedback:</strong> Sau khi người dùng chọn Option A/B, hệ thống chưa tự động re-run pipeline</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- SLIDE 28: Kế hoạch -->
+        <div class="slide">
+            <h2 class="slide-title">KẾ HOẠCH CẢI TIẾN</h2>
+            <div class="glass-card">
+                <ul>
+                    <li>🚀 <strong>Tích hợp Vision-Language Model (VLM):</strong> Dùng Gemini Vision để Robot tự quét vật thể 3D qua Camera, tự sinh <code>environment_full</code></li>
+                    <li>🚀 <strong>Mở rộng Bộ luật LTL:</strong> Thêm quy tắc cho dao, chất lỏng, nhiệt độ cao</li>
+                    <li>🚀 <strong>Local Transformer Classifier:</strong> Thay Tier 2 bằng mô hình nhẹ chạy cục bộ (DistilBERT/TinyBERT) để giảm phụ thuộc cloud</li>
+                    <li>🚀 <strong>Ontology Inheritance:</strong> Xây dựng hệ thống kế thừa thuộc tính vật liệu (Metal &rarr; all metal objects &rarr; microwave_safe=false)</li>
+                    <li>🚀 <strong>Closed-Loop HRI:</strong> Sau khi người dùng chọn Option, tự động re-run pipeline với thực thể đã chốt</li>
+                    <li>🚀 <strong>Multi-modal Input:</strong> Hỗ trợ nhận lệnh bằng giọng nói (Speech-to-Text) kết hợp cử chỉ tay</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- SLIDE 29: Công nghệ -->
+        <div class="slide">
+            <h2 class="slide-title">CÔNG NGHỆ & THƯ VIỆN SỬ DỤNG</h2>
+            <div class="glass-card grid-2">
+                <div>
+                    <h3 class="text-blue">Core Stack</h3>
+                    <ul>
+                        <li><strong>Backend:</strong> Python, FastAPI, Uvicorn</li>
+                        <li><strong>AI Engine:</strong> Google Gemini 2.5 Flash API</li>
+                        <li><strong>Formal Verification:</strong> pyModelChecking (Kripke, CTL, LTL)</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="text-green">Frontend & Data</h3>
+                    <ul>
+                        <li><strong>Frontend:</strong> HTML5, CSS3 (Glassmorphism), Vanilla JavaScript</li>
+                        <li><strong>Data:</strong> JSON Knowledge Base, CSV Dataset (AmbiK)</li>
+                        <li><strong>Architecture Pattern:</strong> Neuro-Symbolic AI (Neural + Symbolic)</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 30: Thank You -->
+        <div class="slide flex-center">
+            <h1 class="slide-title" style="font-size: 4rem; color: var(--accent-green);">CẢM ƠN QUÝ THẦY CÔ & HỘI ĐỒNG</h1>
+            <h2 class="slide-subtitle" style="font-size: 2rem;">Phần Hỏi Đáp — Q&A</h2>
+            <div style="margin-top: 3rem; text-align: center;">
+                <p style="font-size: 1.2rem; color: #94a3b8;">Hệ thống Xử lý Mơ hồ Ngôn ngữ Tự nhiên cho Robot Nhà Bếp</p>
+                <p style="font-size: 1.2rem; color: #94a3b8;">AmbiK Pipeline</p>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- KaTeX JS -->
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+    
+    <!-- Mermaid JS -->
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+    </script>
+
+    <!-- Slide Navigation Logic -->
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            // Initialize KaTeX
+            if (window.renderMathInElement) {
+                renderMathInElement(document.body, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false},
+                        {left: '\\(', right: '\\)', display: false},
+                        {left: '\\[', right: '\\]', display: true}
+                    ],
+                    throwOnError : false
+                });
+            } else {
+                // If script loaded deferred, wait and try again
+                setTimeout(() => {
+                    if (window.renderMathInElement) {
+                        renderMathInElement(document.body, {
+                            delimiters: [
+                                {left: '$$', right: '$$', display: true},
+                                {left: '$', right: '$', display: false}
+                            ],
+                            throwOnError : false
+                        });
+                    }
+                }, 1000);
+            }
+
+            // Slide Logic
+            const slides = document.querySelectorAll('.slide');
+            const progressBar = document.getElementById('progress-bar');
+            const slideCounter = document.getElementById('slide-counter');
+            let currentSlideIndex = 0;
+            const totalSlides = slides.length;
+
+            function updateSlide() {
+                // Remove active class from all slides
+                slides.forEach((slide, index) => {
+                    slide.classList.remove('active');
+                    if (index < currentSlideIndex) {
+                        slide.style.transform = 'translateY(-20px)';
+                    } else if (index > currentSlideIndex) {
+                        slide.style.transform = 'translateY(20px)';
+                    }
+                });
+
+                // Add active class to current
+                slides[currentSlideIndex].classList.add('active');
+                slides[currentSlideIndex].style.transform = 'translateY(0)';
+
+                // Update Progress and Counter
+                const progress = ((currentSlideIndex + 1) / totalSlides) * 100;
+                progressBar.style.width = progress + '%';
+                slideCounter.textContent = `${currentSlideIndex + 1} / ${totalSlides}`;
+            }
+
+            window.nextSlide = function() {
+                if (currentSlideIndex < totalSlides - 1) {
+                    currentSlideIndex++;
+                    updateSlide();
+                }
+            }
+
+            window.prevSlide = function() {
+                if (currentSlideIndex > 0) {
+                    currentSlideIndex--;
+                    updateSlide();
+                }
+            }
+
+            // Keyboard navigation
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'ArrowRight' || e.key === 'Space') {
+                    nextSlide();
+                } else if (e.key === 'ArrowLeft') {
+                    prevSlide();
+                }
+            });
+
+            // Initialize first slide
+            updateSlide();
+        });
+    </script>
+</body>
+</html>

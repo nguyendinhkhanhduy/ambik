@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/style.css?v=3.0">
 </head>
 <body class="dark-theme">
     <div class="app-container">
@@ -91,6 +91,30 @@
                     </button>
                 </div>
 
+                <!-- Voice Input Toolbar -->
+                <div class="voice-toolbar">
+                    <button id="btn-voice-toggle" class="btn btn-voice" onclick="toggleVoiceInput()" title="Bấm để bật Micro nói câu lệnh">
+                        <i class="fa-solid fa-microphone"></i>
+                        <span id="voice-btn-text">Nói bằng Micro</span>
+                    </button>
+                    <div class="voice-lang-select">
+                        <i class="fa-solid fa-globe text-cyan"></i>
+                        <select id="select-voice-lang" class="select-control-sm">
+                            <option value="vi-VN" selected>Tiếng Việt (vi-VN)</option>
+                            <option value="en-US">English (en-US)</option>
+                        </select>
+                    </div>
+                    <div id="voice-status-box" class="voice-status-indicator hidden">
+                        <span class="live-recording-dot"></span>
+                        <span id="voice-status-msg" class="voice-live-text">Đang lắng nghe... Hãy nói câu lệnh!</span>
+                    </div>
+                    <div class="voice-presets-row" style="display:flex; gap:0.4rem; align-items:center; margin-left:auto;">
+                        <span class="text-subtle" style="font-size:0.75rem;"><i class="fa-solid fa-wand-magic-sparkles text-amber"></i> Câu mẫu:</span>
+                        <button type="button" class="preset-btn" style="font-size:0.75rem; padding:0.25rem 0.5rem;" onclick="simulateVoiceCommand('Pha cho tôi 1 ly cà phê')">"Pha 1 ly cà phê"</button>
+                        <button type="button" class="preset-btn" style="font-size:0.75rem; padding:0.25rem 0.5rem;" onclick="simulateVoiceCommand('Lấy ly sứ trên bàn giúp tôi')">"Lấy ly sứ trên bàn"</button>
+                    </div>
+                </div>
+
                 <!-- Mode 1 & 2 Input Content Area -->
                 <div class="form-group" id="group-direct-input">
                     <div class="label-row">
@@ -122,6 +146,9 @@
                     </div>
                     <div class="chat-input-row">
                         <input type="text" id="input-chat-msg" placeholder="Nhập tin nhắn trò chuyện với Robot..." class="input-control">
+                        <button id="btn-chat-mic" class="btn btn-icon btn-secondary" title="Nói bằng Micro">
+                            <i class="fa-solid fa-microphone"></i>
+                        </button>
                         <button id="btn-send-chat" class="btn btn-primary">
                             <i class="fa-solid fa-paper-plane"></i> Gửi
                         </button>
@@ -131,10 +158,10 @@
                 <!-- Environment Manager (AmbiK Style & KB Interactive Chips) -->
                 <div class="form-group environment-section">
                     <div class="label-row">
-                        <label><i class="fa-solid fa-kitchen-set text-indigo"></i> Trạng Thái Môi Trường KB (Textual Kitchen KB):</label>
+                        <label><i class="fa-solid fa-kitchen-set text-indigo"></i> Trạng Thái Môi Trường Bếp (AmbiK environment_full):</label>
                         <span class="text-subtle" id="env-count">5 vật thể</span>
                     </div>
-                    <p class="text-subtle" style="font-size:0.75rem; margin-bottom:0.3rem;"><i class="fa-solid fa-circle-info text-cyan"></i> Bấm hoặc di chuột lên Tag vật thể để xem thuộc tính ẩn từ <strong>kitchen_kb.json</strong> (Grounding):</p>
+                    <p class="text-subtle" style="font-size:0.75rem; margin-bottom:0.3rem;"><i class="fa-solid fa-circle-info text-cyan"></i> Bấm hoặc di chuột lên Tag vật thể để xem thuộc tính vật lý trích xuất từ <strong>AmbiK Scene</strong> (Semantic Grounding):</p>
                     <div class="env-tags-container" id="env-tags">
                         <!-- Environment chips rendered via JS -->
                     </div>
@@ -258,6 +285,19 @@
                                 <h4><i class="fa-solid fa-chart-line text-purple"></i> Uncertainty Quantification via Semantic Entropy Engine</h4>
                             </div>
                             <div class="card-body">
+                                <!-- Early Routing Indicator -->
+                                <div id="early-routing-banner" class="early-routing-banner hidden">
+                                    <div class="routing-row">
+                                        <span id="routing-badge" class="routing-badge fast">⚡ FAST ROUTE</span>
+                                        <span class="routing-detail">
+                                            Confidence: <strong id="routing-confidence-val">0.95</strong>
+                                            &nbsp;|&nbsp; Tier: <span id="routing-tier">rule</span>
+                                        </span>
+                                        <span id="routing-cost-pill" class="routing-cost-pill saved">Saved 5 API calls (83%)</span>
+                                    </div>
+                                    <div id="routing-reason-text" class="routing-reason"></div>
+                                </div>
+
                                 <!-- Semantic Entropy Score Gauge -->
                                 <div class="entropy-gauge-card">
                                     <div class="gauge-header">
@@ -432,6 +472,70 @@
         </div>
     </div>
 
-    <script src="/static/app.js"></script>
+    <!-- Voice Assistant Modal (Siri / Google Assistant Style) -->
+    <div id="modal-voice" class="modal-backdrop hidden">
+        <div class="modal-card" style="max-width: 550px; text-align: center; padding: 2rem 1.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h3 style="font-size: 1.2rem; display: flex; align-items: center; gap: 0.5rem; color: #f1f5f9;">
+                    <i class="fa-solid fa-microphone text-pink"></i> Trợ Lý Giọng Nói Cho Robot
+                </h3>
+                <button type="button" class="modal-close-voice btn btn-icon btn-secondary" onclick="closeVoiceModal()">&times;</button>
+            </div>
+
+            <!-- Big Glowing Microphone Button -->
+            <div class="voice-hero-container">
+                <button type="button" id="btn-voice-hero" class="voice-hero-btn" onclick="toggleHeroVoice()">
+                    <i class="fa-solid fa-microphone"></i>
+                </button>
+                <div id="voice-wave-animation" class="sound-wave-bars hidden">
+                    <span></span><span></span><span></span><span></span><span></span>
+                </div>
+            </div>
+
+            <p id="voice-hero-status" style="font-size: 0.95rem; color: #cbd5e1; margin-top: 1rem; font-weight: 500;">
+                Bấm vào biểu tượng Micro ở trên để bắt đầu nói...
+            </p>
+
+            <!-- Real-time Transcribed Text Box -->
+            <div class="voice-transcript-box">
+                <textarea id="voice-live-transcript" placeholder="Văn bản nhận diện từ giọng nói sẽ hiển thị tại đây..." rows="3"></textarea>
+            </div>
+
+            <!-- Language Selector & Quick Chips -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; font-size: 0.82rem;">
+                <span class="text-subtle">Ngôn ngữ:</span>
+                <select id="modal-voice-lang" class="select-control-sm" style="width: auto;">
+                    <option value="vi-VN" selected>Tiếng Việt (vi-VN)</option>
+                    <option value="en-US">English (en-US)</option>
+                </select>
+            </div>
+
+            <div class="voice-quick-scenarios">
+                <p class="text-subtle" style="font-size: 0.78rem; margin-bottom: 0.5rem; text-align: left;">
+                    <i class="fa-solid fa-bolt text-amber"></i> Hoặc chọn nhanh kịch bản giọng nói mẫu:
+                </p>
+                <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+                    <button type="button" class="voice-scenario-btn" onclick="applyVoiceScenario('Pha cho tôi 1 ly cà phê')">
+                        ☕ <strong>"Pha cho tôi 1 ly cà phê"</strong> <span class="text-subtle">(Mơ hồ sở thích)</span>
+                    </button>
+                    <button type="button" class="voice-scenario-btn" onclick="applyVoiceScenario('Lấy ly sứ trên bàn giúp tôi')">
+                        🍵 <strong>"Lấy ly sứ trên bàn giúp tôi"</strong> <span class="text-subtle">(Rõ ràng Fast Route)</span>
+                    </button>
+                    <button type="button" class="voice-scenario-btn" onclick="applyVoiceScenario('Hâm nóng bát súp bằng lò vi sóng')">
+                        🥣 <strong>"Hâm nóng bát súp bằng lò vi sóng"</strong> <span class="text-subtle">(Cảnh báo an toàn)</span>
+                    </button>
+                </div>
+            </div>
+
+            <div style="margin-top: 1.5rem; display: flex; gap: 0.75rem;">
+                <button type="button" class="btn btn-outline" style="flex: 1;" onclick="closeVoiceModal()">Đóng</button>
+                <button type="button" class="btn btn-primary" style="flex: 2;" onclick="submitVoiceToPipeline()">
+                    <i class="fa-solid fa-paper-plane"></i> Gửi Vào Pipeline Phân Tích
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js?v=4.0"></script>
 </body>
 </html>

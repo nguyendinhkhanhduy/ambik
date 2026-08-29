@@ -2,7 +2,7 @@
 let state = {
     inputType: 'plan_amb_task',
     environment: ["a ceramic mug", "a glass mug", "coffee machine", "milk", "kitchen table"],
-    apiKey: localStorage.getItem('gemini_api_key') || '',
+    // API key is server-side only (GEMINI_API_KEY env var). Never stored client-side.
     samples: [],
     kitchenKb: {},
     analysisResult: null,
@@ -18,25 +18,26 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function initApp() {
-    await fetchKitchenKb();
     renderEnvironmentTags();
     setupEventListeners();
-    
-    if (state.apiKey) {
-        document.getElementById('input-api-key').value = state.apiKey;
-    }
+    await checkKeyStatus();  // kiểm tra server đang dùng key hay mock
 }
 
-async function fetchKitchenKb() {
+async function checkKeyStatus() {
     try {
-        const res = await fetch('/api/kitchen_kb');
+        const res = await fetch('/api/key-status');
         const data = await res.json();
-        if (data.status === 'success') {
-            state.kitchenKb = data.kb;
+        const badge = document.getElementById('key-status-badge');
+        if (badge) {
+            if (data.has_key) {
+                badge.textContent = `🟢 Live (${data.key_prefix})`;
+                badge.style.color = '#4ade80';
+            } else {
+                badge.textContent = '🟡 Mock mode — chưa có API key';
+                badge.style.color = '#facc15';
+            }
         }
-    } catch (e) {
-        console.log("KB fetch error:", e);
-    }
+    } catch (e) { /* server chưa sẵn sàng */ }
 }
 
 function setupEventListeners() {
@@ -53,21 +54,45 @@ function setupEventListeners() {
         });
     });
 
-    // API Key Modal
+    // API Key Modal — gửi key lên server (lưu trong RAM, không persistent)
     const modalKey = document.getElementById('modal-api-key');
-    document.getElementById('btn-api-key').addEventListener('click', () => {
-        modalKey.classList.remove('hidden');
-    });
-    document.querySelector('.modal-close').addEventListener('click', () => {
-        modalKey.classList.add('hidden');
-    });
-    document.getElementById('btn-save-key').addEventListener('click', () => {
-        const val = document.getElementById('input-api-key').value.trim();
-        state.apiKey = val;
-        localStorage.setItem('gemini_api_key', val);
-        modalKey.classList.add('hidden');
-        showToast('Đã lưu API Key thành công!');
-    });
+    const btnApiKey = document.getElementById('btn-api-key');
+    if (btnApiKey && modalKey) {
+        btnApiKey.addEventListener('click', () => {
+            modalKey.classList.remove('hidden');
+        });
+        const closeBtn = document.querySelector('.modal-close');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => { modalKey.classList.add('hidden'); });
+        }
+        const saveBtn = document.getElementById('btn-save-key');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', async () => {
+                const val = document.getElementById('input-api-key').value.trim();
+                if (!val) {
+                    showToast('Vui lòng nhập API key trước khi lưu.');
+                    return;
+                }
+                try {
+                    const res = await fetch('/api/set-key', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ api_key: val })
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                        showToast('✅ ' + data.message);
+                        await checkKeyStatus();  // cập nhật badge
+                    } else {
+                        showToast('❌ Lỗi: ' + (data.detail || 'Không thể lưu key'));
+                    }
+                } catch (e) {
+                    showToast('❌ Lỗi kết nối server');
+                }
+                modalKey.classList.add('hidden');
+            });
+        }
+    }
 
     // Environment Tags
     document.getElementById('btn-add-env').addEventListener('click', addEnvironmentItem);
@@ -120,6 +145,13 @@ function setupEventListeners() {
 
     // Reset Chat Button
     document.getElementById('btn-reset-chat').addEventListener('click', resetChat);
+
+    // Voice Input Buttons
+    const btnVoiceToggle = document.getElementById('btn-voice-toggle');
+    if (btnVoiceToggle) btnVoiceToggle.addEventListener('click', toggleVoiceInput);
+
+    const btnChatMic = document.getElementById('btn-chat-mic');
+    if (btnChatMic) btnChatMic.addEventListener('click', toggleVoiceInput);
 
     // Custom Answer Submission Handler
     document.getElementById('btn-submit-custom-answer').addEventListener('click', submitCustomAnswer);
@@ -226,16 +258,19 @@ function showKbTooltip(e, itemName) {
 
     popTitle.textContent = itemName;
 
-    let attrs = {
-        "location": "kitchen_table",
-        "is_clean": true,
-        "microwave_safe": !itemName.toLowerCase().includes("metal")
-    };
+    const lower = itemName.toLowerCase();
+    const isMetal = ["metal", "steel", "iron", "aluminum", "foil", "knife", "fork", "pan", "pot", "skillet", "can", "tin", "spoon"].some(k => lower.includes(k));
+    const isPlastic = ["plastic", "bag", "wrap", "container", "bottle"].some(k => lower.includes(k));
+    const isGlass = ["glass", "jar", "cup"].some(k => lower.includes(k));
+    const isCeramic = ["ceramic", "porcelain", "mug", "plate", "bowl", "dish"].some(k => lower.includes(k));
+    const isDirty = ["dirty", "used", "unwashed", "soiled", "sponge"].some(k => lower.includes(k));
 
-    if (state.kitchenKb && state.kitchenKb.kitchen_entities) {
-        const ent = state.kitchenKb.kitchen_entities.find(k => k.name.toLowerCase().includes(itemName.toLowerCase()) || itemName.toLowerCase().includes(k.name.toLowerCase()));
-        if (ent) attrs = ent.attributes;
-    }
+    let attrs = {
+        "material": isMetal ? "metal" : (isPlastic ? "plastic" : (isGlass ? "glass" : (isCeramic ? "ceramic" : "standard"))),
+        "location": "kitchen_table",
+        "is_clean": !isDirty,
+        "microwave_safe": !(isMetal || (isPlastic && !lower.includes("microwave")))
+    };
 
     let html = '';
     for (const [key, val] of Object.entries(attrs)) {
@@ -345,16 +380,20 @@ function renderSamplesList(samples) {
         const card = document.createElement('div');
         card.className = 'sample-item-card';
         
-        const typeBadgeClass = sample.ambiguity_type === 'safety' ? 'badge-red' : 
-                              (sample.ambiguity_type === 'common_sense_knowledge' ? 'badge-blue' : 'badge-purple');
+        const ambType = (sample.ambiguity_type || 'preferences').toLowerCase();
+        const typeBadgeClass = ambType.includes('safety') ? 'badge-red' : 
+                              (ambType.includes('common') ? 'badge-blue' : (ambType.includes('unambiguous') ? 'badge-green' : 'badge-purple'));
+
+        const taskText = sample.instruction || sample.ambiguous_task || sample.unambiguous_direct || '';
+        const previewText = sample.plan_for_amb_task || sample.unambiguous_direct || sample.question || '';
 
         card.innerHTML = `
             <div class="sample-header">
-                <span class="sample-task">Mẫu #${sample.id}</span>
+                <span class="sample-task">Mẫu #${sample.id} (${sample.task_type || 'task'})</span>
                 <span class="badge ${typeBadgeClass}">${escapeHtml(sample.ambiguity_type)}</span>
             </div>
-            <p style="font-size:0.85rem; color:#cbd5e1; margin-bottom:0.4rem;"><strong>Task mơ hồ:</strong> ${escapeHtml(sample.ambiguous_task || sample.unambiguous_direct)}</p>
-            <p style="font-size:0.75rem; color:#9ca3af;"><strong>Plan (amb):</strong> ${escapeHtml((sample.plan_for_amb_task || '').substring(0, 100))}...</p>
+            <p style="font-size:0.85rem; color:#cbd5e1; margin-bottom:0.4rem;"><strong>Câu lệnh:</strong> ${escapeHtml(taskText)}</p>
+            <p style="font-size:0.75rem; color:#9ca3af;"><strong>Ngữ cảnh/Ý định:</strong> ${escapeHtml(previewText.substring(0, 110))}...</p>
         `;
 
         card.addEventListener('click', () => {
@@ -368,8 +407,9 @@ function renderSamplesList(samples) {
 
 function filterSamples(query) {
     const filtered = state.samples.filter(s => 
+        (s.instruction && s.instruction.toLowerCase().includes(query)) ||
         (s.ambiguous_task && s.ambiguous_task.toLowerCase().includes(query)) ||
-        (s.plan_for_amb_task && s.plan_for_amb_task.toLowerCase().includes(query)) ||
+        (s.unambiguous_direct && s.unambiguous_direct.toLowerCase().includes(query)) ||
         (s.ambiguity_type && s.ambiguity_type.toLowerCase().includes(query))
     );
     renderSamplesList(filtered);
@@ -377,19 +417,21 @@ function filterSamples(query) {
 
 function selectSample(sample) {
     state.selectedOptionKey = null;
+    const taskContent = sample.instruction || sample.ambiguous_task || sample.unambiguous_direct || '';
+    
     if (state.inputType === 'plan_amb_task') {
-        document.getElementById('input-content').value = sample.plan_for_amb_task || sample.ambiguous_task;
+        document.getElementById('input-content').value = sample.plan_for_amb_task || taskContent;
     } else if (state.inputType === 'text') {
-        document.getElementById('input-content').value = sample.ambiguous_task || sample.unambiguous_direct;
+        document.getElementById('input-content').value = taskContent;
     } else {
-        document.getElementById('input-chat-msg').value = sample.ambiguous_task || sample.unambiguous_direct;
+        document.getElementById('input-chat-msg').value = taskContent;
     }
 
     if (sample.environment && sample.environment.length > 0) {
         state.environment = [...sample.environment];
         renderEnvironmentTags();
     }
-    showToast(`Đã chọn Mẫu #${sample.id} từ dataset AmbiK!`);
+    showToast(`Đã nạp bài toán #${sample.id} từ dataset AmbiK!`);
 }
 
 async function runAnalysis() {
@@ -417,14 +459,16 @@ async function executeAnalysis(content, mode) {
                 input_type: mode,
                 input_content: content,
                 environment: state.environment,
-                api_key: state.apiKey,
+                // api_key intentionally omitted — server reads GEMINI_API_KEY env var
                 chat_history: mode === 'chat' ? state.chatHistory : []
             })
         });
 
         const data = await response.json();
-        
-        if (data.status === 'success') {
+
+        // main.py v3: top-level status is APPROVED|REJECTED|NEEDS_CLARIFICATION|UNKNOWN
+        // (was 'success'/'error' in v2). We treat any 2xx HTTP as a valid analysis result.
+        if (response.ok && data.analysis) {
             state.analysisResult = data.analysis;
 
             if (mode === 'chat' && data.analysis.chat_reply) {
@@ -432,9 +476,10 @@ async function executeAnalysis(content, mode) {
                 appendChatMessage('robot', data.analysis.chat_reply, kOpts);
             }
 
-            await animatePipeline(data.analysis);
+            await animatePipeline(data.analysis, content);
         } else {
-            alert('Lỗi phân tích: ' + (data.detail || 'Không xác định'));
+            const errMsg = data.detail?.error || data.detail || data.error || 'Không xác định';
+            alert('Lỗi phân tích: ' + errMsg);
         }
 
     } catch (err) {
@@ -444,7 +489,7 @@ async function executeAnalysis(content, mode) {
     }
 }
 
-async function animatePipeline(analysis) {
+async function animatePipeline(analysis, originalContent) {
     setStepActive(1);
     renderStage1(analysis);
     await delay(150);
@@ -460,7 +505,7 @@ async function animatePipeline(analysis) {
     await delay(150);
 
     setStepActive(4);
-    renderStage4(analysis);
+    renderStage4(analysis, originalContent);
 
     document.getElementById('raw-json-viewer').textContent = JSON.stringify(analysis, null, 2);
 }
@@ -518,7 +563,59 @@ function renderStage1(analysis) {
     }
 }
 
+function renderEarlyRouting(analysis) {
+    const banner = document.getElementById('early-routing-banner');
+    if (!banner) return;
+    const routing = analysis.early_routing;
+    if (!routing) {
+        banner.classList.add('hidden');
+        return;
+    }
+    
+    banner.classList.remove('hidden');
+    const badge = document.getElementById('routing-badge');
+    const confVal = document.getElementById('routing-confidence-val');
+    const tier = document.getElementById('routing-tier');
+    const costPill = document.getElementById('routing-cost-pill');
+    const reason = document.getElementById('routing-reason-text');
+    
+    const confMeta = routing.conformal_meta || {};
+    const qHat = confMeta.q_hat !== undefined ? confMeta.q_hat.toFixed(2) : '0.15';
+    const covPct = confMeta.coverage_guarantee !== undefined ? confMeta.coverage_guarantee : '95.0';
+
+    if (badge) {
+        if (routing.was_skipped) {
+            badge.className = 'routing-badge fast';
+            badge.innerHTML = `<i class="fa-solid fa-shield-halved text-emerald"></i> CONFORMAL FAST ROUTE (${covPct}% GUARANTEE)`;
+        } else {
+            badge.className = 'routing-badge full';
+            badge.innerHTML = '<i class="fa-solid fa-magnifying-glass-chart"></i> CONFORMAL FULL PIPELINE (N=5)';
+        }
+    }
+    
+    if (confVal) {
+        confVal.textContent = `q̂ = ${qHat} (Độ phủ: ${covPct}%)`;
+    }
+    if (tier) {
+        tier.textContent = confMeta.method || routing.tier || 'Conformal Prediction';
+    }
+    if (costPill) {
+        if (routing.was_skipped) {
+            costPill.textContent = `Tiết kiệm ${routing.api_calls_saved || 5} API calls (${routing.cost_saved_pct || 83}%)`;
+            costPill.className = 'routing-cost-pill saved';
+        } else {
+            costPill.textContent = `Đang chạy Entropy N=5 (0% saved)`;
+            costPill.className = 'routing-cost-pill full';
+        }
+    }
+    if (reason) {
+        reason.textContent = routing.reason ? `Lý do: ${routing.reason}` : '';
+    }
+}
+
 function renderStage2(analysis) {
+    renderEarlyRouting(analysis);
+
     const scoreVal = document.getElementById('entropy-score-val');
     const barFill = document.getElementById('gauge-bar-fill');
     
@@ -610,11 +707,10 @@ function renderStage3(analysis) {
     const qText = document.getElementById('text-clarify-question');
     const grid = document.getElementById('k-choice-options-grid');
     const customRow = document.getElementById('custom-answer-row');
-    grid.innerHTML = '';
-
     const kChoice = analysis.k_choice_question || {};
+    if (grid) grid.innerHTML = '';
 
-    if (kChoice && kChoice.question && kChoice.options && kChoice.options.length > 0 && state.inputType !== 'plan_amb_task') {
+    if (kChoice && kChoice.question && kChoice.options && kChoice.options.length > 0) {
         qBox.classList.remove('hidden');
         qText.textContent = `"${kChoice.question}"`;
         grid.classList.remove('hidden');
@@ -637,23 +733,37 @@ function renderStage3(analysis) {
                 const alertBanner = document.getElementById('user-selection-alert');
                 const alertText = document.getElementById('text-user-selection-status');
                 alertBanner.classList.remove('hidden');
-                alertText.innerHTML = `✅ <strong>Đã ghi nhận lựa chọn:</strong> Phương án ${opt.key} (${escapeHtml(opt.target)}). Đang tự động giải nghĩa và kích hoạt Stage 4...`;
+                alertText.innerHTML = `✅ <strong>Đã ghi nhận lựa chọn:</strong> Phương án ${opt.key} (${escapeHtml(opt.target || opt.label)}). Đang tự động giải nghĩa và kích hoạt Stage 4...`;
 
                 if (state.inputType === 'chat') {
-                    document.getElementById('input-chat-msg').value = `Tôi chọn phương án ${opt.key}: ${opt.target}`;
+                    document.getElementById('input-chat-msg').value = `Tôi chọn phương án ${opt.key}: ${opt.target || opt.label}`;
                     sendChatMessage();
                 } else {
-                    document.getElementById('input-content').value += `\n[Người dùng chọn ${opt.key}]: Dùng ${opt.target}`;
-                    executeAnalysis(document.getElementById('input-content').value, state.inputType);
+                    let baseContent = document.getElementById('input-content').value;
+                    baseContent = baseContent.replace(/\n*\[(?:Người dùng chọn|Câu trả lời từ người dùng)[^\]]*\]:[^\n\r]*/gi, '').trim();
+                    const updatedContent = `${baseContent}\n[Người dùng chọn ${opt.key}]: Dùng ${opt.target || opt.label}`;
+                    document.getElementById('input-content').value = updatedContent;
+                    executeAnalysis(updatedContent, state.inputType);
                 }
             });
 
             grid.appendChild(card);
         });
 
-    } else if (analysis.clarifying_question_for_user && state.inputType !== 'plan_amb_task') {
+    } else if (analysis.clarifying_question_for_user || (kChoice && kChoice.question)) {
+        const qStr = analysis.clarifying_question_for_user || kChoice.question;
         qBox.classList.remove('hidden');
-        qText.textContent = `"${analysis.clarifying_question_for_user}"`;
+        qText.textContent = `"${qStr}"`;
+        grid.classList.add('hidden');
+        customRow.classList.remove('hidden');
+    } else if (analysis.status === 'REJECTED') {
+        qBox.classList.remove('hidden');
+        qText.textContent = `⚠️ Kế hoạch bị từ chối vì lý do an toàn (${analysis.reason_code || 'Safety Violation'}). Không thể thực thi.`;
+        grid.classList.add('hidden');
+        customRow.classList.add('hidden');
+    } else if (analysis.status === 'NEEDS_CLARIFICATION') {
+        qBox.classList.remove('hidden');
+        qText.textContent = `❓ ${analysis.chat_reply || analysis.summary || 'Cần làm rõ thêm thông tin trước khi thực hiện.'}`;
         grid.classList.add('hidden');
         customRow.classList.remove('hidden');
     } else {
@@ -681,64 +791,76 @@ function submitCustomAnswer() {
         document.getElementById('input-chat-msg').value = val;
         sendChatMessage();
     } else {
-        document.getElementById('input-content').value += `\n[Câu trả lời từ người dùng]: ${val}`;
-        executeAnalysis(document.getElementById('input-content').value, state.inputType);
+        let baseContent = document.getElementById('input-content').value;
+        baseContent = baseContent.replace(/\n*\[(?:Người dùng chọn|Câu trả lời từ người dùng)[^\]]*\]:[^\n\r]*/gi, '').trim();
+        const updatedContent = `${baseContent}\n[Câu trả lời từ người dùng]: ${val}`;
+        document.getElementById('input-content').value = updatedContent;
+        executeAnalysis(updatedContent, state.inputType);
     }
 }
 
-function renderStage4(analysis) {
+function renderStage4(analysis, inputContent) {
+    // Debugging: output analysis object to console
+    console.log('[Debug] renderStage4 analysis:', analysis);
+    // Proceed with rendering
     const pendingBanner = document.getElementById('stage4-pending-banner');
     const executionContent = document.getElementById('stage4-execution-content');
-
-    const isPending = (analysis.overall_classification === 'Preferences' || (analysis.safe_execution_plan && analysis.safe_execution_plan.length === 0)) 
-                      && !state.selectedOptionKey 
-                      && state.inputType !== 'plan_amb_task';
-
-    if (isPending) {
-        pendingBanner.classList.remove('hidden');
-        executionContent.classList.add('hidden');
-        return;
-    }
-
+    // Never hide Stage 4 Lifting & LTL analysis
     pendingBanner.classList.add('hidden');
     executionContent.classList.remove('hidden');
-
     // 1. Lifted NL & Proposition Mapping Section
-    let originalText = "";
-    if (state.inputType === 'chat') {
-        const userMsgs = state.chatHistory.filter(m => m.role === 'user');
-        if (userMsgs.length > 0) {
-            originalText = userMsgs[userMsgs.length - 1].content;
+    let originalText = inputContent;
+    if (!originalText || originalText.trim() === '') {
+        if (state.inputType === 'chat') {
+            const userMsgs = state.chatHistory.filter(m => m.role === 'user');
+            originalText = userMsgs.length > 0 ? userMsgs[userMsgs.length - 1].content : (document.getElementById('input-chat-msg').value || "Pha cho tôi 1 ly cà phê thơm nóng");
         } else {
-            originalText = document.getElementById('input-chat-msg').value.trim() || "Pha cho tôi 1 ly cà phê thơm nóng";
+            originalText = document.getElementById('input-content').value.trim() || "1. Locate container. 2. Pour honey.";
         }
-    } else {
-        originalText = document.getElementById('input-content').value.trim() || "1. Locate container. 2. Pour honey.";
     }
+
     
-    document.getElementById('text-original-input').textContent = `"${originalText}"`;
+    document.getElementById('text-original-input').textContent = originalText;
     
     let liftedNl = analysis.lifted_nl;
-    if (!liftedNl || liftedNl === '...' || liftedNl.trim() === '') {
-        liftedNl = `The robot should prop_1 and then prop_2.`;
+    let propMap = analysis.proposition_mapping || {};
+
+    // Treat default placeholder as missing and generate fallback
+    if (!liftedNl || liftedNl.includes("...") || Object.keys(propMap).length === 0) {
+        const lines = originalText.split('\n').map(s => s.trim()).filter(Boolean);
+        if (lines.length > 1) {
+            const liftedSteps = lines.map((l, i) => `${i + 1}. prop_${i + 1}`);
+            liftedNl = liftedSteps.join(' -> ');
+            propMap = {};
+            lines.forEach((l, i) => {
+                propMap[`prop_${i + 1}`] = l.replace(/^\d+[\.\)\-]\s*/, '');
+            });
+        } else {
+            liftedNl = `The robot should prop_1 and then prop_2.`;
+            propMap = {
+                "prop_1": originalText,
+                "prop_2": "kiểm chứng an toàn (safety verification)"
+            };
+        }
     }
-    document.getElementById('text-lifted-nl').textContent = `"${liftedNl}"`;
+
+    console.log('[Debug] Set text-lifted-nl to:', liftedNl);
+    document.getElementById('text-lifted-nl').textContent = liftedNl;
     
     const propMapContainer = document.getElementById('list-proposition-mapping');
     propMapContainer.innerHTML = '';
-    const props = analysis.proposition_mapping || {};
-    if (Object.keys(props).length === 0) {
-        propMapContainer.innerHTML = `
-            <li><strong style="color: var(--accent-pink);">prop_1</strong>: ${originalText.split('\n')[0] || originalText}</li>
-            <li><strong style="color: var(--accent-pink);">prop_2</strong>: kiểm chứng an toàn (safety verification)</li>
-        `;
-    } else {
-        for (const [key, val] of Object.entries(props)) {
-            const li = document.createElement('li');
-            li.innerHTML = `<strong style="color: var(--accent-pink);">${key}</strong>: ${val}`;
-            propMapContainer.appendChild(li);
-        }
+    console.log('[Debug] Rendering proposition mapping:', propMap);
+    for (const [key, val] of Object.entries(propMap)) {
+        const li = document.createElement('li');
+        // XSS fix: use DOM nodes instead of innerHTML to avoid injecting raw LLM values
+        const strong = document.createElement('strong');
+        strong.style.color = 'var(--accent-pink)';
+        strong.textContent = key;          // key from backend — textContent escapes
+        li.appendChild(strong);
+        li.appendChild(document.createTextNode(': ' + String(val)));  // val is LLM output — must not be innerHTML
+        propMapContainer.appendChild(li);
     }
+    console.log('[Debug] Proposition mapping rendered.');
 
     const ltlPre = document.getElementById('ltl-formula-text');
     const verifiedBadge = document.getElementById('verified-safe-badge');
@@ -762,14 +884,32 @@ function renderStage4(analysis) {
     let steps = analysis.safe_execution_plan || [];
 
     if (!steps || steps.length === 0) {
-        const envItem1 = state.environment[0] || "target_item";
-        const envItem2 = state.environment[1] || "kitchen_table";
-        
-        steps = [
-            {"step": 1, "action": "FindObject", "target": envItem1, "note": `Bước 1: Tìm kiếm ${envItem1} trong nhà bếp`},
-            {"step": 2, "action": "PickUp", "target": envItem1, "note": `Bước 2: Cầm ${envItem1} một cách an toàn`},
-            {"step": 3, "action": "PutObject", "target": envItem2, "note": `Bước 3: Đặt ${envItem1} lên ${envItem2}`}
-        ];
+        // Fail-closed: never synthesize a plan on the frontend.
+        // Show the reason from the backend instead.
+        const reasonCode = analysis.reason_code || '';
+        const statusVal  = analysis.status || 'NEEDS_CLARIFICATION';
+        const msgMap = {
+            'NEEDS_CLARIFICATION': 'Cần làm rõ thêm thông tin trước khi thực hiện.',
+            'REJECTED':            'Kế hoạch bị từ chối vì lý do an toàn hoặc dữ liệu không hợp lệ.',
+            'NO_OBJECT_MATCHED':   'Không tìm thấy vật thể khớp với câu lệnh trong môi trường.',
+            'CLASSIFICATION_INCONCLUSIVE': 'Không thể phân loại yêu cầu đủ chắc chắn.',
+            'UNSAFE_MICROWAVE_MATERIAL':   'Vật liệu không an toàn cho lò vi sóng.',
+            'DIRTY_TOOL_ON_CLEAN_SURFACE': 'Không được dùng dụng cụ bẩn trên bề mặt sạch.',
+            'SAFETY_INVARIANT_VIOLATED':   'Vi phạm ràng buộc an toàn vật lý.',
+        };
+        const displayMsg = msgMap[reasonCode] || msgMap[statusVal] || 'Không có kế hoạch thực thi hợp lệ.';
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'plan-empty-state';
+        emptyDiv.style.cssText = 'padding:24px;text-align:center;color:var(--text-muted);font-style:italic;';
+        emptyDiv.textContent = `⏸ ${displayMsg}`;
+        if (reasonCode) {
+            const codeSpan = document.createElement('div');
+            codeSpan.style.cssText = 'margin-top:8px;font-size:0.75em;opacity:0.6;font-style:normal;';
+            codeSpan.textContent = `Mã lý do: ${reasonCode}`;
+            emptyDiv.appendChild(codeSpan);
+        }
+        container.appendChild(emptyDiv);
+        return;
     }
 
     steps.forEach(s => {
@@ -802,3 +942,176 @@ function escapeHtml(str) {
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
 }
+
+/* ==========================================================================
+   Voice Assistant & Speech Recognition Engine (Web Speech API)
+   ========================================================================== */
+let recognition = null;
+let isRecording = false;
+
+window.openVoiceModal = function() {
+    const modal = document.getElementById('modal-voice');
+    if (modal) modal.classList.remove('hidden');
+};
+
+window.closeVoiceModal = function() {
+    const modal = document.getElementById('modal-voice');
+    if (modal) modal.classList.add('hidden');
+    if (isRecording && recognition) {
+        try { recognition.stop(); } catch(e) {}
+        isRecording = false;
+        updateVoiceUI(false);
+    }
+};
+
+window.toggleVoiceInput = function() {
+    console.log("[Voice] Open Voice Assistant Modal");
+    openVoiceModal();
+};
+
+window.toggleHeroVoice = function() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        alert("Trình duyệt của bạn hiện chưa hỗ trợ Web Speech API trực tiếp. Hãy chọn một trong các 'Kịch bản giọng nói mẫu' ở bên dưới để thử nghiệm ngay lập tức!");
+        return;
+    }
+
+    if (!recognition) {
+        setupVoiceRecognition();
+    }
+
+    if (isRecording) {
+        try { recognition.stop(); } catch(e) {}
+        isRecording = false;
+        updateVoiceUI(false);
+    } else {
+        const langSelect = document.getElementById('modal-voice-lang') || document.getElementById('select-voice-lang');
+        recognition.lang = langSelect ? langSelect.value : 'vi-VN';
+        try {
+            recognition.start();
+            console.log("[Voice] Hero Recognition started in:", recognition.lang);
+        } catch (e) {
+            console.error("[Voice] Start error:", e);
+            alert("Không thể mở Micro. Hãy đảm bảo bạn đã bấm 'Cho phép' khi trình duyệt hỏi quyền sử dụng Microphone (icon ổ khóa 🔒 ở thanh địa chỉ URL)!");
+        }
+    }
+};
+
+function setupVoiceRecognition() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+
+    recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+
+    recognition.onstart = () => {
+        isRecording = true;
+        updateVoiceUI(true);
+    };
+
+    recognition.onresult = (event) => {
+        let transcript = "";
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+            transcript += event.results[i][0].transcript;
+        }
+
+        // Update in Modal transcript
+        const transcriptBox = document.getElementById('voice-live-transcript');
+        if (transcriptBox) transcriptBox.value = transcript;
+
+        // Also update in Main Input
+        if (state.inputType === 'chat') {
+            const chatIn = document.getElementById('input-chat-msg');
+            if (chatIn) chatIn.value = transcript;
+        } else {
+            const mainIn = document.getElementById('input-content');
+            if (mainIn) mainIn.value = transcript;
+        }
+    };
+
+    recognition.onerror = (event) => {
+        console.error("Speech recognition error:", event.error);
+        isRecording = false;
+        updateVoiceUI(false);
+        const heroStatus = document.getElementById('voice-hero-status');
+        if (heroStatus) {
+            heroStatus.innerHTML = `<span style="color:#f87171;"><i class="fa-solid fa-triangle-exclamation"></i> Lỗi: ${event.error}. Bạn có thể chọn câu mẫu bên dưới!</span>`;
+        }
+    };
+
+    recognition.onend = () => {
+        isRecording = false;
+        updateVoiceUI(false);
+    };
+}
+
+window.applyVoiceScenario = function(text) {
+    const transcriptBox = document.getElementById('voice-live-transcript');
+    if (transcriptBox) transcriptBox.value = text;
+
+    const heroStatus = document.getElementById('voice-hero-status');
+    if (heroStatus) {
+        heroStatus.innerHTML = `<span style="color:#6ee7b7;"><i class="fa-solid fa-circle-check"></i> Đã chọn câu lệnh: <strong>"${text}"</strong></span>`;
+    }
+};
+
+window.submitVoiceToPipeline = function() {
+    const transcriptBox = document.getElementById('voice-live-transcript');
+    const text = transcriptBox ? transcriptBox.value.trim() : '';
+
+    if (!text) {
+        alert("Vui lòng nói hoặc chọn một câu lệnh trước khi gửi!");
+        return;
+    }
+
+    closeVoiceModal();
+
+    if (state.inputType === 'chat') {
+        const chatIn = document.getElementById('input-chat-msg');
+        if (chatIn) {
+            chatIn.value = text;
+            sendChatMessage();
+        }
+    } else {
+        const mainIn = document.getElementById('input-content');
+        if (mainIn) {
+            mainIn.value = text;
+            runAnalysis();
+        }
+    }
+};
+
+window.simulateVoiceCommand = function(text) {
+    applyVoiceScenario(text);
+    submitVoiceToPipeline();
+};
+
+function updateVoiceUI(recording) {
+    const btnHero = document.getElementById('btn-voice-hero');
+    const waveAnim = document.getElementById('voice-wave-animation');
+    const heroStatus = document.getElementById('voice-hero-status');
+    const btnVoice = document.getElementById('btn-voice-toggle');
+    const statusBox = document.getElementById('voice-status-box');
+
+    if (recording) {
+        if (btnHero) btnHero.classList.add('recording');
+        if (waveAnim) waveAnim.classList.remove('hidden');
+        if (heroStatus) heroStatus.innerHTML = '<span style="color:#f43f5e;"><i class="fa-solid fa-circle-dot"></i> Đang lắng nghe giọng nói... Hãy nói câu lệnh!</span>';
+        if (btnVoice) {
+            btnVoice.classList.add('recording');
+            btnVoice.innerHTML = '<i class="fa-solid fa-stop text-white"></i> <span>Dừng Nghe...</span>';
+        }
+        if (statusBox) statusBox.classList.remove('hidden');
+    } else {
+        if (btnHero) btnHero.classList.remove('recording');
+        if (waveAnim) waveAnim.classList.add('hidden');
+        if (heroStatus) heroStatus.innerHTML = 'Bấm vào biểu tượng Micro ở trên để bắt đầu nói...';
+        if (btnVoice) {
+            btnVoice.classList.remove('recording');
+            btnVoice.innerHTML = '<i class="fa-solid fa-microphone"></i> <span id="voice-btn-text">Nói bằng Micro</span>';
+        }
+        if (statusBox) statusBox.classList.add('hidden');
+    }
+}
+
