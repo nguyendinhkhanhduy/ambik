@@ -38,9 +38,13 @@ graph TD
 * Python 3.10+
 * Windows / Linux (Ubuntu) / macOS
 
-### Bước 1: Cài đặt thư viện
+### Bước 1: Cài đặt thư viện & Tải Dataset
 ```bash
+# 1. Cài đặt các gói phụ thuộc
 pip install -r requirements.txt
+
+# 2. Tải Dataset AmbiK từ repository gốc (nếu chưa có)
+python scripts/setup_dataset.py
 ```
 
 ### Bước 2: Khởi động Server AI
@@ -78,10 +82,13 @@ python ros_integration/ambik_ros_bridge.py
 ├── evaluate_benchmark.py       # Bộ đánh giá định lượng Benchmark Suite (A/B/C)
 ├── requirements.txt            # Danh sách gói phụ thuộc Python
 ├── Dockerfile                  # Cấu hình container hóa Docker
+├── LICENSE                     # Giấy phép nguồn mở MIT License
+├── scripts/
+│   ├── setup_dataset.py        # Script tự động clone dataset từ repo tác giả gốc
+│   └── run_calibration.py      # Script chạy calibration Conformal
 ├── schemas/                    # Pydantic Schemas (EnvironmentState, ExecutionStep)
 │   ├── __init__.py
 │   └── environment.py
-├── AmbiK-dataset/              # Tập dữ liệu chuẩn AmbiK Benchmark
 ├── static/                     # Giao diện Web UI, CSS, JS & Slide báo cáo
 │   ├── index.html
 │   ├── app.js
@@ -95,9 +102,44 @@ python ros_integration/ambik_ros_bridge.py
 
 ---
 
-## 📄 6. Tham khảo Khoa học (Academic References)
+## 📚 6. Nguồn Dữ liệu & Bản quyền Bên thứ ba (Third-Party Attribution)
 
-* **AmbiK Benchmark:** *AmbiK: Dataset of Ambiguous Tasks in Kitchen Environment* (ACL 2025).
-* **KnowNo (Conformal Prediction):** *Robots That Ask For Help: Uncertainty Alignment for Large Language Model Planners* (CoRL 2023 - Best Student Paper).
-* **Semantic Entropy:** *Detecting hallucinations in large language models using semantic entropy* (Nature 2024).
-* **AutoTAMP:** *AutoTAMP: Autoregressive Task and Motion Planning with LLMs as Translators and Checkers* (ICRA 2024).
+Dự án này sử dụng và đánh giá thực nghiệm dựa trên tập dữ liệu chuẩn **AmbiK Benchmark**:
+* **Tác giả:** Anastasia Ivanova, Eva Bakaeva, Zoya Volovikova, Alexey Kovalev, and Aleksandr Panov.
+* **Bài báo:** *"AmbiK: Dataset of Ambiguous Tasks in Kitchen Environment."* Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (**ACL 2025**).
+* **Repository gốc:** [https://github.com/cog-model/AmbiK-dataset](https://github.com/cog-model/AmbiK-dataset)
+* **arXiv Preprint:** [arXiv:2506.04089](https://arxiv.org/abs/2506.04089)
+
+```bibtex
+@inproceedings{ivanova-etal-2025-ambik,
+    title = "{A}mbi{K}: Dataset of Ambiguous Tasks in Kitchen Environment",
+    author = "Ivanova, Anastasia  and
+      Bakaeva, Eva  and
+      Volovikova, Zoya  and
+      Kovalev, Alexey  and
+      Panov, Aleksandr",
+    booktitle = "Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics",
+    year = "2025"
+}
+```
+
+> **Phân định đóng góp (Contributions):**
+> * **Phần mã nguồn của dự án này:** Toàn bộ kiến trúc nhận thức Neuro-Symbolic (FastAPI Backend, Adaptive Early Routing, Semantic Entropy Clustering, Deterministic Safety Policy Engine, Formal CTL Model Checking, Dynamic Propositional Lifting, ROS Bridge và Web HRI Interface) được thiết kế và hiện thực bởi nhóm tác giả của repository này.
+> * **Tập dữ liệu Benchmark:** Thuộc bản quyền và công trình nghiên cứu của nhóm tác giả AmbiK (ACL 2025).
+
+---
+
+## 📄 7. Tham khảo Khoa học Liên quan (Related Literature)
+
+* **KnowNo (Conformal Prediction):** Ren et al., *"Robots That Ask For Help: Uncertainty Alignment for Large Language Model Planners"*, Conference on Robot Learning (**CoRL 2023 - Best Student Paper**).
+* **Semantic Entropy:** Kuhn et al., *"Detecting hallucinations in large language models using semantic entropy"*, **Nature 2024** & ICLR 2023.
+* **AutoTAMP (Formal TAMP):** Chen et al., *"AutoTAMP: Autoregressive Task and Motion Planning with LLMs as Translators and Checkers"*, **ICRA 2024**.
+* **SayCan:** Ahn et al., *"Do As I Can, Not As I Say: Grounding Language in Robotic Affordances"*, **CoRL 2022**.
+
+---
+
+## ⚖️ 8. Giấy phép (License)
+
+* Toàn bộ mã nguồn do nhóm phát triển được phát hành theo giấy phép [MIT License](./LICENSE).
+* Tập dữ liệu AmbiK tuân thủ theo điều khoản và bản quyền của nhóm tác giả gốc ([cog-model/AmbiK-dataset](https://github.com/cog-model/AmbiK-dataset)).
+

@@ -29,3 +29,7 @@ desktop.ini
 # Deployment / Temp
 .vercel/
 scratch/
+
+# Third-party Datasets (Download separately via scripts/setup_dataset.py)
+AmbiK-dataset/
+AmbiK_data.csv
